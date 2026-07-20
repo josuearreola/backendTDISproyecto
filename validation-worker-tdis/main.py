@@ -31,6 +31,7 @@ def process_validation_job(rdb, db_conn, job_data):
         # 1. Obtener los detalles del alumno y la actividad a partir del registro_tdi_id
         cursor.execute("""
             SELECT 
+                u.id AS user_id,
                 u.nombre, u.apellido_paterno, u.apellido_materno,
                 a.matricula,
                 c.nombre AS tdi_nombre,
@@ -51,6 +52,7 @@ def process_validation_job(rdb, db_conn, job_data):
             print(f"[Worker] Error: No se encontró información del alumno para el registro {registro_id}")
             return
             
+        user_id = student_data["user_id"]
         student_name = f"{student_data['nombre']} {student_data['apellido_paterno'] or ''} {student_data['apellido_materno'] or ''}".strip()
         matricula = student_data["matricula"]
         tdi_nombre = student_data["tdi_nombre"]
@@ -59,6 +61,7 @@ def process_validation_job(rdb, db_conn, job_data):
         alumno_id = student_data["alumno_id"]
         meta_horas = student_data["meta_horas"] or 60
         dimension_id = student_data["dimension_id"]
+
         
         # 2. Control de Plagio (Verificar si el mismo hash ya fue subido en otra constancia de otro alumno)
         cursor.execute("""
@@ -83,6 +86,12 @@ def process_validation_job(rdb, db_conn, job_data):
                 SET estado = 'RECHAZADA', motivo_rechazo = %s
                 WHERE id = %s
             """, (obs, registro_id))
+            
+            # Insertar notificación de rechazo por plagio
+            cursor.execute("""
+                INSERT INTO notificaciones (usuario_id, titulo, mensaje)
+                VALUES (%s, %s, %s)
+            """, (user_id, "Evidencia Rechazada", f"Tu evidencia para la actividad '{tdi_nombre}' fue rechazada automáticamente por intento de plagio (archivo duplicado)."))
             
             db_conn.commit()
             print(f"[Worker] Registro {registro_id} rechazado automáticamente por duplicidad.")
@@ -148,6 +157,12 @@ def process_validation_job(rdb, db_conn, job_data):
                     porcentaje = EXCLUDED.porcentaje
             """, (alumno_id, dimension_id, new_horas, percentage))
             
+            # Insertar notificación de aprobación automática
+            cursor.execute("""
+                INSERT INTO notificaciones (usuario_id, titulo, mensaje)
+                VALUES (%s, %s, %s)
+            """, (user_id, "Evidencia Aprobada", f"¡Felicidades! Tu evidencia para la actividad '{tdi_nombre}' ha sido aprobada automáticamente. Se te han otorgado {tdi_horas} horas y {tdi_puntaje} puntos."))
+            
             db_conn.commit()
             print(f"[Worker] Puntos de actividad asignados automáticamente al alumno {matricula}.")
             
@@ -166,12 +181,19 @@ def process_validation_job(rdb, db_conn, job_data):
                 VALUES (%s, 'PENDIENTE', %s)
             """, (registro_id, observaciones))
             
+            # Insertar notificación de derivación a revisión manual
+            cursor.execute("""
+                INSERT INTO notificaciones (usuario_id, titulo, mensaje)
+                VALUES (%s, %s, %s)
+            """, (user_id, "Evidencia en Revisión Manual", f"Tu evidencia para la actividad '{tdi_nombre}' requiere revisión por parte de un administrador: {observaciones}"))
+            
             db_conn.commit()
             print(f"[Worker] Registro {registro_id} enviado a la tabla de revisiones para los administrativos.")
             
     except Exception as e:
         db_conn.rollback()
         print(f"[Worker] Error procesando la transacción de base de datos: {e}")
+
     finally:
         cursor.close()
 

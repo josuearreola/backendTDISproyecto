@@ -509,6 +509,151 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/tdi/revisiones/pendientes": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Retorna el listado de revisiones manuales en estado PENDIENTE (Solo Administrativos, Coordinadores o Creadores)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "revisiones"
+                ],
+                "summary": "Listar evidencias pendientes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rol del usuario que ejecuta",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de revisiones",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.PendingRevision"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Acceso denegado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tdi/revisiones/{id}/dictamen": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Aprueba o rechaza una revisión de evidencia asignando puntos/horas de forma automática en caso de aprobación.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "revisiones"
+                ],
+                "summary": "Dictaminar una revisión manual",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID del administrativo",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Rol del usuario que ejecuta",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID de la revisión",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Cuerpo del dictamen",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.DictamenReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Dictamen guardado con éxito",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos de entrada inválidos",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Acceso denegado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -552,6 +697,64 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "trascendencia_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "db.PendingRevision": {
+            "type": "object",
+            "properties": {
+                "apellido_materno": {
+                    "type": "string"
+                },
+                "apellido_paterno": {
+                    "type": "string"
+                },
+                "evidencia_nombre": {
+                    "type": "string"
+                },
+                "evidencia_url": {
+                    "type": "string"
+                },
+                "fecha_solicitud": {
+                    "type": "string"
+                },
+                "matricula": {
+                    "type": "string"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "ocr_observaciones": {
+                    "type": "string"
+                },
+                "registro_tdi_id": {
+                    "type": "string"
+                },
+                "revision_id": {
+                    "type": "string"
+                },
+                "tdi_horas": {
+                    "type": "integer"
+                },
+                "tdi_nombre": {
+                    "type": "string"
+                },
+                "tdi_puntaje": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.DictamenReq": {
+            "type": "object",
+            "required": [
+                "decision"
+            ],
+            "properties": {
+                "comentario": {
+                    "type": "string"
+                },
+                "decision": {
                     "type": "string"
                 }
             }

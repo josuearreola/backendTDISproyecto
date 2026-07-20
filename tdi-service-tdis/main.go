@@ -95,6 +95,9 @@ func main() {
 	r.Post("/registro/{id}/subir-evidencia", h.SubirEvidenciaHandler)
 	r.Get("/registro/mis-registros", h.GetAlumnoRegistrosHandler)
 	r.Get("/alumnos/progreso", h.GetAlumnoProgresoHandler)
+	r.Get("/revisiones/pendientes", h.GetPendingRevisionsHandler)
+	r.Post("/revisiones/{id}/dictamen", h.ResolveRevisionHandler)
+
 
 	// Servidor estático para la carpeta uploads
 	workDir, _ := os.Getwd()

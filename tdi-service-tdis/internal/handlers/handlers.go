@@ -468,3 +468,101 @@ func (h *Handler) GetAlumnoProgresoHandler(w http.ResponseWriter, r *http.Reques
 
 	writeJSON(w, http.StatusOK, progreso)
 }
+
+type DictamenReq struct {
+	Decision   string `json:"decision" validate:"required"`
+	Comentario string `json:"comentario"`
+}
+
+// GetPendingRevisionsHandler retorna el listado de evidencias pendientes por revisar.
+// @Summary Listar evidencias pendientes
+// @Description Retorna el listado de revisiones manuales en estado PENDIENTE (Solo Administrativos, Coordinadores o Creadores)
+// @Tags revisiones
+// @Produce json
+// @Security Bearer
+// @Param X-User-Role header string true "Rol del usuario que ejecuta"
+// @Success 200 {array} db.PendingRevision "Lista de revisiones"
+// @Failure 403 {object} map[string]string "Acceso denegado"
+// @Failure 500 {object} map[string]string "Error interno"
+// @Router /api/tdi/revisiones/pendientes [get]
+func (h *Handler) GetPendingRevisionsHandler(w http.ResponseWriter, r *http.Request) {
+	requesterRole := r.Header.Get("X-User-Role")
+	if requesterRole != "ADMINISTRATIVO" && requesterRole != "COORDINADOR" && requesterRole != "CREADOR_TDI" {
+		writeError(w, http.StatusForbidden, "acceso denegado: rol insuficiente")
+		return
+	}
+
+	revisions, err := h.Store.GetPendingRevisions(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al obtener revisiones: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, revisions)
+}
+
+// ResolveRevisionHandler dictamina una revisión de evidencia (Aprobar o Rechazar).
+// @Summary Dictaminar una revisión manual
+// @Description Aprueba o rechaza una revisión de evidencia asignando puntos/horas de forma automática en caso de aprobación.
+// @Tags revisiones
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param X-User-Id header string true "ID del administrativo"
+// @Param X-User-Role header string true "Rol del usuario que ejecuta"
+// @Param id path string true "ID de la revisión"
+// @Param request body DictamenReq true "Cuerpo del dictamen"
+// @Success 200 {object} map[string]string "Dictamen guardado con éxito"
+// @Failure 400 {object} map[string]string "Datos de entrada inválidos"
+// @Failure 403 {object} map[string]string "Acceso denegado"
+// @Failure 500 {object} map[string]string "Error interno"
+// @Router /api/tdi/revisiones/{id}/dictamen [post]
+func (h *Handler) ResolveRevisionHandler(w http.ResponseWriter, r *http.Request) {
+	requesterRole := r.Header.Get("X-User-Role")
+	if requesterRole != "ADMINISTRATIVO" && requesterRole != "COORDINADOR" && requesterRole != "CREADOR_TDI" {
+		writeError(w, http.StatusForbidden, "acceso denegado: rol insuficiente")
+		return
+	}
+
+	userID := r.Header.Get("X-User-Id")
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "identidad del administrador no proporcionada")
+		return
+	}
+
+	// Obtener el ID de la revisión de la ruta
+	trimmedPath := strings.TrimSuffix(r.URL.Path, "/dictamen")
+	revisionID := trimmedPath[strings.LastIndex(trimmedPath, "/")+1:]
+	if revisionID == "" {
+		writeError(w, http.StatusBadRequest, "ID de revisión inválido")
+		return
+	}
+
+	var req DictamenReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+
+	req.Decision = strings.ToUpper(strings.TrimSpace(req.Decision))
+	if req.Decision != "APROBADA" && req.Decision != "RECHAZADA" {
+		writeError(w, http.StatusBadRequest, "la decisión debe ser APROBADA o RECHAZADA")
+		return
+	}
+
+	// Obtener detalles de la revisión
+	details, err := h.Store.GetStudentAndTDIInfoFromRevision(r.Context(), revisionID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "no se pudo encontrar la revisión: "+err.Error())
+		return
+	}
+
+	err = h.Store.ResolveRevision(r.Context(), revisionID, userID, req.Decision, req.Comentario, details)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al guardar el dictamen: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "dictamen de evidencia guardado con éxito"})
+}
+

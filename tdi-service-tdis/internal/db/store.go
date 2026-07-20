@@ -412,3 +412,219 @@ func (s *Store) GetAlumnoProgreso(ctx context.Context, userID string) (map[strin
 		"dimensiones":        dimensionesProgreso,
 	}, nil
 }
+
+// PendingRevision representa la información detallada de una revisión de evidencia pendiente.
+type PendingRevision struct {
+	RevisionID       string    `json:"revision_id"`
+	RegistroTdiID    string    `json:"registro_tdi_id"`
+	Nombre           string    `json:"nombre"`
+	ApellidoPaterno  string    `json:"apellido_paterno"`
+	ApellidoMaterno  string    `json:"apellido_materno"`
+	Matricula        string    `json:"matricula"`
+	TdiNombre        string    `json:"tdi_nombre"`
+	TdiHoras         int       `json:"tdi_horas"`
+	TdiPuntaje       int       `json:"tdi_puntaje"`
+	EvidenciaURL     *string   `json:"evidencia_url"`
+	EvidenciaNombre  *string   `json:"evidencia_nombre"`
+	OcrObservaciones string    `json:"ocr_observaciones"`
+	FechaSolicitud   time.Time `json:"fecha_solicitud"`
+}
+
+// RevisionDetails contiene la información del alumno e interés de la TDI para procesar el dictamen.
+type RevisionDetails struct {
+	UserID      string
+	AlumnoID    string
+	TdiNombre   string
+	TdiHoras    int
+	TdiPuntaje  int
+	MetaHoras   int
+	DimensionID string
+	RegistroID  string
+}
+
+// GetPendingRevisions obtiene el listado de evidencias pendientes por revisar del sistema.
+func (s *Store) GetPendingRevisions(ctx context.Context) ([]PendingRevision, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT 
+			r.id AS revision_id,
+			reg.id AS registro_tdi_id,
+			u.nombre, u.apellido_paterno, u.apellido_materno,
+			a.matricula,
+			c.nombre AS tdi_nombre,
+			c.horas AS tdi_horas,
+			c.puntaje AS tdi_puntaje,
+			e.url AS evidencia_url,
+			e.nombre_archivo AS evidencia_nombre,
+			r.comentario AS ocr_observaciones,
+			r.fecha AS fecha_solicitud
+		FROM revisiones r
+		JOIN registro_tdi reg ON r.registro_tdi_id = reg.id
+		JOIN alumnos a ON reg.alumno_id = a.id
+		JOIN users u ON a.user_id = u.id
+		JOIN catalogo_tdi c ON reg.catalogo_tdi_id = c.id
+		LEFT JOIN evidencias e ON reg.id = e.registro_tdi_id
+		WHERE r.decision = 'PENDIENTE'
+		ORDER BY r.fecha ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener revisiones pendientes: %w", err)
+	}
+	defer rows.Close()
+
+	var revisions []PendingRevision
+	for rows.Next() {
+		var r PendingRevision
+		err := rows.Scan(
+			&r.RevisionID, &r.RegistroTdiID, &r.Nombre, &r.ApellidoPaterno, &r.ApellidoMaterno,
+			&r.Matricula, &r.TdiNombre, &r.TdiHoras, &r.TdiPuntaje, &r.EvidenciaURL,
+			&r.EvidenciaNombre, &r.OcrObservaciones, &r.FechaSolicitud,
+		)
+		if err != nil {
+			return nil, err
+		}
+		revisions = append(revisions, r)
+	}
+
+	if revisions == nil {
+		revisions = []PendingRevision{}
+	}
+
+	return revisions, nil
+}
+
+// GetStudentAndTDIInfoFromRevision obtiene la información detallada para resolver la revisión.
+func (s *Store) GetStudentAndTDIInfoFromRevision(ctx context.Context, revisionID string) (*RevisionDetails, error) {
+	var d RevisionDetails
+	err := s.pool.QueryRow(ctx, `
+		SELECT 
+			a.user_id,
+			a.id AS alumno_id,
+			c.nombre AS tdi_nombre,
+			c.horas AS tdi_horas,
+			c.puntaje AS tdi_puntaje,
+			COALESCE(a.meta_horas, 60) AS meta_horas,
+			c.dimension_id,
+			reg.id AS registro_id
+		FROM revisiones r
+		JOIN registro_tdi reg ON r.registro_tdi_id = reg.id
+		JOIN alumnos a ON reg.alumno_id = a.id
+		JOIN catalogo_tdi c ON reg.catalogo_tdi_id = c.id
+		WHERE r.id = $1
+	`, revisionID).Scan(
+		&d.UserID, &d.AlumnoID, &d.TdiNombre, &d.TdiHoras, &d.TdiPuntaje,
+		&d.MetaHoras, &d.DimensionID, &d.RegistroID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// ResolveRevision resuelve una revisión de forma atómica en base de datos.
+func (s *Store) ResolveRevision(ctx context.Context, revisionID string, requesterUserID string, decision string, comentario string, details *RevisionDetails) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("error iniciando transaccion: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. Intentar buscar el id de administrativos del usuario que realiza la acción
+	var adminID *string
+	var aid string
+	err = tx.QueryRow(ctx, "SELECT id FROM administrativos WHERE user_id = $1", requesterUserID).Scan(&aid)
+	if err == nil {
+		adminID = &aid
+	}
+
+	// 2. Actualizar tabla revisiones
+	_, err = tx.Exec(ctx, `
+		UPDATE revisiones
+		SET decision = $1, comentario = $2, administrativo_id = $3, fecha = CURRENT_TIMESTAMP
+		WHERE id = $4
+	`, decision, comentario, adminID, revisionID)
+	if err != nil {
+		return fmt.Errorf("no se pudo actualizar la revision: %w", err)
+	}
+
+	// 3. Actualizar registro_tdi e historial
+	if decision == "APROBADA" {
+		_, err = tx.Exec(ctx, `
+			UPDATE registro_tdi
+			SET estado = 'APROBADA', horas_otorgadas = $1, puntaje_obtenido = $2, fecha_aprobacion = CURRENT_TIMESTAMP
+			WHERE id = $3
+		`, details.TdiHoras, details.TdiPuntaje, details.RegistroID)
+		if err != nil {
+			return fmt.Errorf("no se pudo aprobar el registro: %w", err)
+		}
+
+		// Sumar horas al alumno
+		_, err = tx.Exec(ctx, `
+			UPDATE alumnos
+			SET horas_acumuladas = horas_acumuladas + $1
+			WHERE id = $2
+		`, details.TdiHoras, details.AlumnoID)
+		if err != nil {
+			return fmt.Errorf("no se se pudo sumas horas al alumno: %w", err)
+		}
+
+		// Recalcular y actualizar progreso por dimensión
+		var currentHoras int
+		err = tx.QueryRow(ctx, `
+			SELECT horas FROM progreso_alumno 
+			WHERE alumno_id = $1 AND dimension_id = $2
+		`, details.AlumnoID, details.DimensionID).Scan(&currentHoras)
+		
+		newHoras := details.TdiHoras
+		if err == nil {
+			newHoras += currentHoras
+		}
+
+		percentage := float64(newHoras*100) / float64(details.MetaHoras)
+		if percentage > 100.0 {
+			percentage = 100.0
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO progreso_alumno (alumno_id, dimension_id, horas, porcentaje)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (alumno_id, dimension_id) DO UPDATE SET
+				horas = EXCLUDED.horas,
+				porcentaje = EXCLUDED.porcentaje
+		`, details.AlumnoID, details.DimensionID, newHoras, percentage)
+		if err != nil {
+			return fmt.Errorf("no se pudo actualizar progreso: %w", err)
+		}
+
+		// Insertar notificación de aprobación
+		_, err = tx.Exec(ctx, `
+			INSERT INTO notificaciones (usuario_id, titulo, mensaje)
+			VALUES ($1, 'Evidencia Aprobada por Administrador', $2)
+		`, details.UserID, fmt.Sprintf("Tu evidencia para la actividad '%s' ha sido aprobada manualmente. Se te han otorgado %d horas.", details.TdiNombre, details.TdiHoras))
+		if err != nil {
+			return fmt.Errorf("no se pudo insertar notificacion: %w", err)
+		}
+
+	} else {
+		// Rechazar registro
+		_, err = tx.Exec(ctx, `
+			UPDATE registro_tdi
+			SET estado = 'RECHAZADA', motivo_rechazo = $1
+			WHERE id = $2
+		`, comentario, details.RegistroID)
+		if err != nil {
+			return fmt.Errorf("no se pudo rechazar el registro: %w", err)
+		}
+
+		// Insertar notificación de rechazo
+		_, err = tx.Exec(ctx, `
+			INSERT INTO notificaciones (usuario_id, titulo, mensaje)
+			VALUES ($1, 'Evidencia Rechazada por Administrador', $2)
+		`, details.UserID, fmt.Sprintf("Tu evidencia para la actividad '%s' ha sido rechazada. Motivo: %s", details.TdiNombre, comentario))
+		if err != nil {
+			return fmt.Errorf("no se pudo insertar notificacion: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
