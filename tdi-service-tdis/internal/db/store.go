@@ -628,3 +628,99 @@ func (s *Store) ResolveRevision(ctx context.Context, revisionID string, requeste
 	return tx.Commit(ctx)
 }
 
+// MasterItem representa un registro genérico de las tablas maestras (categorías, dimensiones, etc.)
+type MasterItem struct {
+	ID          string `json:"id"`
+	Nombre      string `json:"nombre"`
+	Descripcion string `json:"descripcion"`
+}
+
+// GetCategorias obtiene la lista de categorías registradas en el sistema.
+func (s *Store) GetCategorias(ctx context.Context) ([]MasterItem, error) {
+	rows, err := s.pool.Query(ctx, "SELECT id, nombre, COALESCE(descripcion, '') FROM categorias ORDER BY nombre ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []MasterItem
+	for rows.Next() {
+		var item MasterItem
+		if err := rows.Scan(&item.ID, &item.Nombre, &item.Descripcion); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []MasterItem{}
+	}
+	return items, nil
+}
+
+// GetDimensiones obtiene la lista de dimensiones registradas en el sistema.
+func (s *Store) GetDimensiones(ctx context.Context) ([]MasterItem, error) {
+	rows, err := s.pool.Query(ctx, "SELECT id, nombre, COALESCE(descripcion, '') FROM dimensiones ORDER BY nombre ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []MasterItem
+	for rows.Next() {
+		var item MasterItem
+		if err := rows.Scan(&item.ID, &item.Nombre, &item.Descripcion); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []MasterItem{}
+	}
+	return items, nil
+}
+
+// GetTrascendencias obtiene la lista de niveles de trascendencia registrados en el sistema.
+func (s *Store) GetTrascendencias(ctx context.Context) ([]MasterItem, error) {
+	rows, err := s.pool.Query(ctx, "SELECT id, nombre, COALESCE(descripcion, '') FROM trascendencias ORDER BY nombre ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []MasterItem
+	for rows.Next() {
+		var item MasterItem
+		if err := rows.Scan(&item.ID, &item.Nombre, &item.Descripcion); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []MasterItem{}
+	}
+	return items, nil
+}
+
+// GetEntornos obtiene la lista de entornos registrados en el sistema.
+func (s *Store) GetEntornos(ctx context.Context) ([]MasterItem, error) {
+	rows, err := s.pool.Query(ctx, "SELECT id, nombre, COALESCE(descripcion, '') FROM entornos ORDER BY nombre ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []MasterItem
+	for rows.Next() {
+		var item MasterItem
+		if err := rows.Scan(&item.ID, &item.Nombre, &item.Descripcion); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []MasterItem{}
+	}
+	return items, nil
+}
+
+

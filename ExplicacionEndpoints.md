@@ -59,6 +59,9 @@ sequenceDiagram
 > Todas las peticiones deben dirigirse al puerto del API Gateway: `http://localhost:8080`.
 > Aquellas rutas marcadas con **(Protegido)** requieren la cabecera `Authorization: Bearer <TOKEN_JWT>`.
 
+> [!IMPORTANT]
+> **Sensibilidad a Mayúsculas (Case-Sensitivity)**: Los encabezados de roles como `X-User-Role` deben ir estrictamente en **MAYÚSCULAS** (`ALUMNO`, `ADMINISTRATIVO`, `CREADOR_TDI`, `COORDINADOR`) y coincidir exactamente con el campo `role` devuelto en la respuesta de Login.
+
 ---
 
 ### A. Servicio de Usuarios y Autenticación (`/api/users`)
@@ -81,7 +84,13 @@ sequenceDiagram
 *   **Respuesta Esperada (201 Created)**:
     ```json
     {
-      "message": "usuario registrado con éxito"
+      "token": "eyJhbGciOi...",
+      "user": {
+        "id": "uuid-usuario",
+        "email": "alumno@uteq.edu.mx",
+        "nombre": "Juan",
+        "role": "ALUMNO"
+      }
     }
     ```
 
@@ -154,7 +163,48 @@ sequenceDiagram
     }
     ```
 
-#### 6. Obtener Historial de Notificaciones
+#### 6. Completar Perfil (Administrativo)
+*   **Ruta**: `POST /api/users/administrativos/completar-perfil` **(Protegido)**
+*   **Cuerpo (JSON)**:
+    ```json
+    {
+      "cargo": "Director de TI"
+    }
+    ```
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    {
+      "message": "perfil administrativo guardado con éxito"
+    }
+    ```
+
+#### 7. Completar Perfil (Creador de TDI)
+*   **Ruta**: `POST /api/users/creadores/completar-perfil` **(Protegido)**
+*   **Cuerpo (JSON)**:
+    ```json
+    {
+      "institucion": "UTEQ",
+      "tipo": "Docente", // Ej: Docente, Tutor, Externa, etc.
+      "descripcion": "Coordinador de actividades extracurriculares"
+    }
+    ```
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    {
+      "message": "perfil de creador guardado con éxito"
+    }
+    ```
+
+#### 8. Desactivar Usuario (Baja Lógica)
+*   **Ruta**: `DELETE /api/users/users/{id}` **(Protegido)**
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    {
+      "message": "usuario desactivado con éxito (baja lógica)"
+    }
+    ```
+
+#### 9. Obtener Historial de Notificaciones
 *   **Ruta**: `GET /api/users/notificaciones` **(Protegido)**
 *   **Respuesta Esperada (200 OK)**:
     ```json
@@ -162,14 +212,14 @@ sequenceDiagram
       {
         "id": "uuid-notificacion",
         "titulo": "Evidencia Aprobada",
-        "mensaje": "¡Felicidades! Tu evidencia para la actividad 'Congreso IA' ha sido aprobada.",
+        "message": "¡Felicidades! Tu evidencia para la actividad 'Congreso IA' ha sido aprobada.",
         "leida": false,
         "fecha": "2026-07-19T23:00:00Z"
       }
     ]
     ```
 
-#### 7. Marcar Notificación como Leída
+#### 10. Marcar Notificación como Leída
 *   **Ruta**: `PUT /api/users/notificaciones/{id}/leer` **(Protegido)**
 *   **Respuesta Esperada (200 OK)**:
     ```json
@@ -198,7 +248,56 @@ sequenceDiagram
     ]
     ```
 
-#### 2. Seleccionar Actividad (Inscripción del Alumno)
+#### 2. Registrar Nueva Actividad (Catálogo)
+*   **Ruta**: `POST /api/tdi/catalogo` **(Protegido)**
+*   **Cuerpo (JSON)**:
+    ```json
+    {
+      "nombre": "Congreso de Inteligencia Artificial",
+      "descripcion": "Descripción detallada de la actividad...",
+      "evidencia_requerida": "Constancia con código QR de asistencia",
+      "horas": 10,
+      "puntaje": 5,
+      "fecha_vencimiento": "2026-12-31", // Formato estricto AAAA-MM-DD
+      "categoria_id": "uuid-categoria",
+      "dimension_id": "uuid-dimension",
+      "trascendencia_id": "uuid-trascendencia",
+      "entorno_id": "uuid-entorno"
+    }
+    ```
+*   **Respuesta Esperada (201 Created)**:
+    ```json
+    {
+      "message": "actividad creada en catálogo con éxito"
+    }
+    ```
+
+#### 3. Editar Actividad (Catálogo)
+*   **Ruta**: `PUT /api/tdi/catalogo/{id}` **(Protegido)**
+*   **Descripción**: Edición por reemplazo completo. Requiere el mismo JSON que la creación.
+*   **Cuerpo (JSON)**:
+    ```json
+    {
+      "nombre": "Congreso de Inteligencia Artificial (Modificado)",
+      "descripcion": "Nueva descripción...",
+      "evidencia_requerida": "Constancia de asistencia",
+      "horas": 12,
+      "puntaje": 6,
+      "fecha_vencimiento": "2026-12-31",
+      "categoria_id": "uuid-categoria",
+      "dimension_id": "uuid-dimension",
+      "trascendencia_id": "uuid-trascendencia",
+      "entorno_id": "uuid-entorno"
+    }
+    ```
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    {
+      "message": "actividad actualizada en catálogo con éxito"
+    }
+    ```
+
+#### 4. Seleccionar Actividad (Inscripción del Alumno)
 *   **Ruta**: `POST /api/tdi/registro/seleccionar` **(Protegido)**
 *   **Cuerpo (JSON)**:
     ```json
@@ -215,7 +314,7 @@ sequenceDiagram
     }
     ```
 
-#### 3. Subir Evidencia Física (Carga de Archivos)
+#### 5. Subir Evidencia Física (Carga de Archivos)
 *   **Ruta**: `POST /api/tdi/registro/{id}/subir-evidencia` **(Protegido)**
 *   **Cuerpo**: Multipart/Form-Data con un campo llamado `archivo` (Extensiones: `.pdf`, `.png`, `.jpg`, `.jpeg`).
 *   **Respuesta Esperada (200 OK)**:
@@ -229,7 +328,7 @@ sequenceDiagram
     }
     ```
 
-#### 4. Consultar Mis Actividades (Alumno)
+#### 6. Consultar Mis Actividades (Alumno)
 *   **Ruta**: `GET /api/tdi/registro/mis-registros` **(Protegido)**
 *   **Respuesta Esperada (200 OK)**:
     ```json
@@ -244,7 +343,7 @@ sequenceDiagram
     ]
     ```
 
-#### 5. Consultar Progreso de Horas/Puntos (Alumno)
+#### 7. Consultar Progreso de Horas/Puntos (Alumno)
 *   **Ruta**: `GET /api/tdi/alumnos/progreso` **(Protegido)**
 *   **Respuesta Esperada (200 OK)**:
     ```json
@@ -261,7 +360,7 @@ sequenceDiagram
     }
     ```
 
-#### 6. Listar Evidencias en Revisión (Administrativos)
+#### 8. Listar Evidencias en Revisión (Administrativos)
 *   **Ruta**: `GET /api/tdi/revisiones/pendientes` **(Protegido)**
 *   **Headers requeridos**: `X-User-Role` con valor `ADMINISTRATIVO`, `CREADOR_TDI` o `COORDINADOR`.
 *   **Respuesta Esperada (200 OK)**:
@@ -279,7 +378,7 @@ sequenceDiagram
     ]
     ```
 
-#### 7. Dictaminar Evidencia Manualmente (Administrativos)
+#### 9. Dictaminar Evidencia Manualmente (Administrativos)
 *   **Ruta**: `POST /api/tdi/revisiones/{id}/dictamen` **(Protegido)**
 *   **Headers requeridos**: `X-User-Role` con valor administrativo.
 *   **Cuerpo (JSON)**:
@@ -296,7 +395,60 @@ sequenceDiagram
     }
     ```
 
+#### 10. Listar Categorías (Tablas Maestras)
+*   **Ruta**: `GET /api/tdi/categorias` **(Protegido)**
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    [
+      {
+        "id": "3c0d1822-4467-4639-bca1-0537be6c7a22",
+        "nombre": "Deportes",
+        "descripcion": "Actividades deportivas y de salud física"
+      }
+    ]
+    ```
+
+#### 11. Listar Dimensiones (Tablas Maestras)
+*   **Ruta**: `GET /api/tdi/dimensiones` **(Protegido)**
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    [
+      {
+        "id": "f83a667b-60a1-432a-bc91-e408a68bfe35",
+        "nombre": "Física y Salud",
+        "descripcion": "Dimensión de cuidado corporal y deportivo"
+      }
+    ]
+    ```
+
+#### 12. Listar Niveles de Trascendencia (Tablas Maestras)
+*   **Ruta**: `GET /api/tdi/trascendencias` **(Protegido)**
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    [
+      {
+        "id": "ca226d79-6a99-4c12-9294-08a68bfe3599",
+        "nombre": "Institucional",
+        "descripcion": "Impacto dentro de la universidad"
+      }
+    ]
+    ```
+
+#### 13. Listar Entornos (Tablas Maestras)
+*   **Ruta**: `GET /api/tdi/entornos` **(Protegido)**
+*   **Respuesta Esperada (200 OK)**:
+    ```json
+    [
+      {
+        "id": "6a99cd22-4712-4c22-9294-e6a18768fe35",
+        "nombre": "Presencial",
+        "descripcion": "Actividades realizadas físicamente en la institución"
+      }
+    ]
+    ```
+
 ---
+
 
 ## 4. El Motor de Validación IA (Las 4 Capas)
 

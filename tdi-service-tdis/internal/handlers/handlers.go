@@ -566,3 +566,76 @@ func (h *Handler) ResolveRevisionHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "dictamen de evidencia guardado con éxito"})
 }
 
+// GetCategoriasHandler lista las categorías de las actividades.
+// @Summary Listar categorías
+// @Description Retorna todas las categorías maestras registradas en la base de datos
+// @Tags tdi-maestras
+// @Produce json
+// @Security Bearer
+// @Success 200 {array} db.MasterItem
+// @Failure 500 {object} map[string]string "Error interno"
+// @Router /api/tdi/categorias [get]
+func (h *Handler) GetCategoriasHandler(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Store.GetCategorias(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al obtener categorías: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+// GetDimensionesHandler lista las dimensiones del catálogo.
+// @Summary Listar dimensiones
+// @Description Retorna todas las dimensiones maestras registradas en la base de datos
+// @Tags tdi-maestras
+// @Produce json
+// @Security Bearer
+// @Success 200 {array} db.MasterItem
+// @Failure 500 {object} map[string]string "Error interno"
+// @Router /api/tdi/dimensiones [get]
+func (h *Handler) GetDimensionesHandler(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Store.GetDimensiones(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al obtener dimensiones: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+// GetTrascendenciasHandler lista los niveles de trascendencia.
+// @Summary Listar niveles de trascendencia
+// @Description Retorna todos los niveles de trascendencia registrados en la base de datos
+// @Tags tdi-maestras
+// @Produce json
+// @Security Bearer
+// @Success 200 {array} db.MasterItem
+// @Failure 500 {object} map[string]string "Error interno"
+// @Router /api/tdi/trascendencias [get]
+func (h *Handler) GetTrascendenciasHandler(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Store.GetTrascendencias(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al obtener trascendencias: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+// GetEntornosHandler lista los entornos del catálogo.
+// @Summary Listar entornos
+// @Description Retorna todos los entornos registrados en la base de datos
+// @Tags tdi-maestras
+// @Produce json
+// @Security Bearer
+// @Success 200 {array} db.MasterItem
+// @Failure 500 {object} map[string]string "Error interno"
+// @Router /api/tdi/entornos [get]
+func (h *Handler) GetEntornosHandler(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Store.GetEntornos(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "error al obtener entornos: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+

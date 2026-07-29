@@ -324,6 +324,117 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/tdi/categorias": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Retorna todas las categorías maestras registradas en la base de datos",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-maestras"
+                ],
+                "summary": "Listar categorías",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.MasterItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tdi/dimensiones": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Retorna todas las dimensiones maestras registradas en la base de datos",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-maestras"
+                ],
+                "summary": "Listar dimensiones",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.MasterItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tdi/entornos": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Retorna todos los entornos registrados en la base de datos",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-maestras"
+                ],
+                "summary": "Listar entornos",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.MasterItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/tdi/registro/mis-registros": {
             "get": {
                 "security": [
@@ -654,6 +765,43 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/tdi/trascendencias": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Retorna todos los niveles de trascendencia registrados en la base de datos",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-maestras"
+                ],
+                "summary": "Listar niveles de trascendencia",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.MasterItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -697,6 +845,20 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "trascendencia_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "db.MasterItem": {
+            "type": "object",
+            "properties": {
+                "descripcion": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nombre": {
                     "type": "string"
                 }
             }

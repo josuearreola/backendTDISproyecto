@@ -97,6 +97,11 @@ func main() {
 	r.Get("/alumnos/progreso", h.GetAlumnoProgresoHandler)
 	r.Get("/revisiones/pendientes", h.GetPendingRevisionsHandler)
 	r.Post("/revisiones/{id}/dictamen", h.ResolveRevisionHandler)
+	r.Get("/categorias", h.GetCategoriasHandler)
+	r.Get("/dimensiones", h.GetDimensionesHandler)
+	r.Get("/trascendencias", h.GetTrascendenciasHandler)
+	r.Get("/entornos", h.GetEntornosHandler)
+
 
 
 	// Servidor estático para la carpeta uploads
