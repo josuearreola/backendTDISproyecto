@@ -1,0 +1,564 @@
+basePath: /
+definitions:
+  handlers.completarAdministrativoReq:
+    properties:
+      cargo:
+        type: string
+    type: object
+  handlers.completarCreadorReq:
+    properties:
+      descripcion:
+        type: string
+      institucion:
+        type: string
+      tipo:
+        description: Maestro, Tutor, Externa, etc.
+        type: string
+    type: object
+  handlers.completarPerfilReq:
+    properties:
+      carrera:
+        type: string
+      cuatrimestre:
+        type: integer
+      grupo:
+        type: string
+      matricula:
+        type: string
+      tutor:
+        type: string
+    type: object
+  handlers.loginReq:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.registerReq:
+    properties:
+      apellido_materno:
+        type: string
+      apellido_paterno:
+        type: string
+      email:
+        type: string
+      nombre:
+        type: string
+      password:
+        type: string
+      role:
+        type: string
+      telefono:
+        type: string
+    type: object
+  handlers.tokenResp:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+    type: object
+  models.Notification:
+    properties:
+      fecha:
+        type: string
+      id:
+        type: string
+      leida:
+        type: boolean
+      mensaje:
+        type: string
+      titulo:
+        type: string
+      usuario_id:
+        type: string
+    type: object
+  models.PerfilAdministrativo:
+    properties:
+      cargo:
+        type: string
+    type: object
+  models.PerfilAlumno:
+    properties:
+      carrera:
+        type: string
+      cuatrimestre:
+        type: integer
+      grupo:
+        type: string
+      horas_acumuladas:
+        type: integer
+      matricula:
+        type: string
+      meta_horas:
+        type: integer
+      tutor:
+        type: string
+    type: object
+  models.PerfilCreador:
+    properties:
+      descripcion:
+        type: string
+      institucion:
+        type: string
+      tipo:
+        type: string
+    type: object
+  models.Role:
+    enum:
+    - ALUMNO
+    - ADMINISTRATIVO
+    - CREADOR_TDI
+    - COORDINADOR
+    type: string
+    x-enum-varnames:
+    - RoleAlumno
+    - RoleAdministrativo
+    - RoleCreadorTDI
+    - RoleCoordinador
+  models.User:
+    properties:
+      activo:
+        type: boolean
+      apellido_materno:
+        type: string
+      apellido_paterno:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      nombre:
+        type: string
+      perfil_administrativo:
+        $ref: '#/definitions/models.PerfilAdministrativo'
+      perfil_alumno:
+        allOf:
+        - $ref: '#/definitions/models.PerfilAlumno'
+        description: Perfiles adicionales cargados dinámicamente según rol
+      perfil_creador:
+        $ref: '#/definitions/models.PerfilCreador'
+      role:
+        $ref: '#/definitions/models.Role'
+      telefono:
+        type: string
+      updated_at:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Microservicio de autenticación y gestión de usuarios.
+  title: User Service API
+  version: "1.0"
+paths:
+  /api/users/administrativos/completar-perfil:
+    post:
+      consumes:
+      - application/json
+      description: Registra o actualiza el cargo de un usuario administrativo
+      parameters:
+      - description: ID de usuario inyectado por el Gateway
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Datos del administrativo
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.completarAdministrativoReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Perfil completado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Datos inválidos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: No autorizado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Completar perfil de administrativo
+      tags:
+      - users
+  /api/users/alumnos/completar-perfil:
+    post:
+      consumes:
+      - application/json
+      description: Registra o actualiza la información académica de un estudiante
+      parameters:
+      - description: ID de usuario inyectado por el Gateway
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Datos académicos del alumno
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.completarPerfilReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Perfil completado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Datos inválidos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: No autorizado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Completar perfil del alumno
+      tags:
+      - users
+  /api/users/creadores/completar-perfil:
+    post:
+      consumes:
+      - application/json
+      description: Registra o actualiza los datos de institución del creador
+      parameters:
+      - description: ID de usuario inyectado por el Gateway
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Datos del creador
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.completarCreadorReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Perfil completado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Datos inválidos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: No autorizado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Completar perfil de creador de TDI
+      tags:
+      - users
+  /api/users/login:
+    post:
+      consumes:
+      - application/json
+      description: Valida credenciales y emite un JWT
+      parameters:
+      - description: Credenciales
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.loginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.tokenResp'
+        "400":
+          description: Cuerpo inválido
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Credenciales inválidas
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Iniciar sesión
+      tags:
+      - users
+  /api/users/logout:
+    post:
+      description: Invalida el token JWT actual agregándolo a la denylist para que
+        no pueda volver a usarse.
+      responses:
+        "200":
+          description: Sesión cerrada con éxito
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Token inválido o no proporcionado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Cerrar sesión (Logout)
+      tags:
+      - auth
+  /api/users/me:
+    get:
+      description: Devuelve el perfil del usuario autenticado
+      parameters:
+      - description: ID de usuario inyectado por el Gateway
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "401":
+          description: Falta identidad
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Usuario no encontrado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Obtener perfil actual
+      tags:
+      - users
+  /api/users/notificaciones:
+    get:
+      description: Retorna el listado de alertas y notificaciones del usuario autenticado.
+      parameters:
+      - description: ID del usuario logueado
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista de notificaciones
+          schema:
+            items:
+              $ref: '#/definitions/models.Notification'
+            type: array
+        "401":
+          description: No autorizado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Obtener notificaciones del usuario
+      tags:
+      - notificaciones
+  /api/users/notificaciones/{id}/leer:
+    put:
+      description: Cambia el estado de leída a true para la notificación provista
+        en la ruta.
+      parameters:
+      - description: ID del usuario logueado
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: ID de la notificación
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Notificación marcada como leída
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: No autorizado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Marcar notificación como leída
+      tags:
+      - notificaciones
+  /api/users/register:
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo usuario y emite un token JWT
+      parameters:
+      - description: Datos de registro
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.registerReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.tokenResp'
+        "400":
+          description: Cuerpo o datos inválidos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: El email ya está registrado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Registrar un nuevo usuario
+      tags:
+      - users
+  /api/users/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Cambia el estado del usuario a inactivo (Solo Administrativo o
+        Coordinador)
+      parameters:
+      - description: Rol del usuario que ejecuta la acción
+        in: header
+        name: X-User-Role
+        required: true
+        type: string
+      - description: ID del usuario a desactivar
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Usuario desactivado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Acceso denegado
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Desactivar un usuario (Baja Lógica)
+      tags:
+      - users
+securityDefinitions:
+  Bearer:
+    description: Escribe 'Bearer ' seguido de tu token JWT para autenticarte.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

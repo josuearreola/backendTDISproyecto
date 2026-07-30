@@ -1,0 +1,1176 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API Gateway unificada para el sistema de Formación Integral (TDIs) de la UTEQ.",
+        "title": "API Gateway TDI UTEQ",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/api/tdi/catalogo": {
+            "get": {
+                "description": "Obtiene todas las actividades vigentes con filtros opcionales",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Listar y filtrar catálogo de TDIs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtrar por ID de Categoría",
+                        "name": "categoria_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtrar por ID de Dimensión",
+                        "name": "dimension_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtrar por ID de Entorno",
+                        "name": "entorno_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtrar por ID de Trascendencia",
+                        "name": "trascendencia_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Buscador por nombre o descripción",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.CatalogItem"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Inserta una actividad al catálogo general verificando el rol del usuario en la base de datos",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Registrar nueva TDI en catálogo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID del usuario que ejecuta la acción",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de la actividad",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.saveTDIReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Actividad creada",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "No autorizado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tdi/catalogo/{id}": {
+            "get": {
+                "description": "Obtiene los detalles de una actividad específica del catálogo",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Obtener detalle de una TDI del catálogo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la TDI",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/db.CatalogItem"
+                        }
+                    },
+                    "404": {
+                        "description": "No encontrada",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Actualiza los campos de una actividad específica del catálogo verificando el rol del usuario en la BD",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Editar una TDI del catálogo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID del usuario que ejecuta la acción",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID de la TDI a editar",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos actualizados",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.saveTDIReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Actividad actualizada",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Elimina físicamente o expira lógicamente una actividad si ya tiene alumnos registrados",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Eliminar una TDI del catálogo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rol de usuario",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID de la TDI a borrar",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Actividad eliminada",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tdi/registro/seleccionar": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Asocia una actividad del catálogo a la cuenta de un alumno",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Seleccionar una actividad",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID del alumno que ejecuta la acción",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "ID de la actividad a seleccionar",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.selectTDIReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Actividad seleccionada",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tdi/registro/{id}/subir-evidencia": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Recibe un archivo (PDF, JPG, PNG, Word, Excel), lo renombra usando la matrícula del alumno, calcula su hash y lo guarda localmente.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tdi-catalog"
+                ],
+                "summary": "Subir archivo de evidencia (Autohospedado)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID del alumno que ejecuta la acción",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID del registro de participación (registro_tdi_id)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Archivo de evidencia (Max 5MB)",
+                        "name": "archivo",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Evidencia subida y estado actualizado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Cuerpo o archivo inválido",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno al guardar",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/administrativos/completar-perfil": {
+            "post": {
+                "description": "Registra o actualiza el cargo de un usuario administrativo",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Completar perfil de administrativo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de usuario inyectado por el Gateway",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos del administrativo",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.completarAdministrativoReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Perfil completado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autorizado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/alumnos/completar-perfil": {
+            "post": {
+                "description": "Registra o actualiza la información académica de un estudiante",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Completar perfil del alumno",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de usuario inyectado por el Gateway",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos académicos del alumno",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.completarPerfilReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Perfil completado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autorizado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/creadores/completar-perfil": {
+            "post": {
+                "description": "Registra o actualiza los datos de institución del creador",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Completar perfil de creador de TDI",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de usuario inyectado por el Gateway",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos del creador",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.completarCreadorReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Perfil completado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autorizado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/login": {
+            "post": {
+                "description": "Valida credenciales y emite un JWT",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Iniciar sesión",
+                "parameters": [
+                    {
+                        "description": "Credenciales",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.loginReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.tokenResp"
+                        }
+                    },
+                    "400": {
+                        "description": "Cuerpo inválido",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciales inválidas",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/logout": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Invalida el token JWT actual agregándolo a la denylist de Redis o de memoria.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Cerrar sesión (Logout)",
+                "responses": {
+                    "200": {
+                        "description": "Sesión cerrada con éxito",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token inválido o no proporcionado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno al invalidar",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/me": {
+            "get": {
+                "description": "Devuelve el perfil del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Obtener perfil actual",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de usuario inyectado por el Gateway",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    },
+                    "401": {
+                        "description": "Falta identidad",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/register": {
+            "post": {
+                "description": "Crea un nuevo usuario y emite un token JWT",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Registrar un nuevo usuario",
+                "parameters": [
+                    {
+                        "description": "Datos de registro",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.registerReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.tokenResp"
+                        }
+                    },
+                    "400": {
+                        "description": "Cuerpo o datos inválidos",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "El email ya está registrado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/users/{id}": {
+            "delete": {
+                "description": "Cambia el estado del usuario a inactivo (Solo Administrativo o Coordinador)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Desactivar un usuario (Baja Lógica)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rol del usuario que ejecuta la acción",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID del usuario a desactivar",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Usuario desactivado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Acceso denegado",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Error interno",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "db.CatalogItem": {
+            "type": "object",
+            "properties": {
+                "categoria_id": {
+                    "type": "string"
+                },
+                "creador_id": {
+                    "type": "string"
+                },
+                "descripcion": {
+                    "type": "string"
+                },
+                "dimension_id": {
+                    "type": "string"
+                },
+                "entorno_id": {
+                    "type": "string"
+                },
+                "evidencia_requerida": {
+                    "type": "string"
+                },
+                "fecha_creacion": {
+                    "type": "string"
+                },
+                "fecha_vencimiento": {
+                    "type": "string"
+                },
+                "horas": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "trascendencia_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.completarAdministrativoReq": {
+            "type": "object",
+            "properties": {
+                "cargo": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.completarCreadorReq": {
+            "type": "object",
+            "properties": {
+                "descripcion": {
+                    "type": "string"
+                },
+                "institucion": {
+                    "type": "string"
+                },
+                "tipo": {
+                    "description": "Maestro, Tutor, Externa, etc.",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.completarPerfilReq": {
+            "type": "object",
+            "properties": {
+                "carrera": {
+                    "type": "string"
+                },
+                "cuatrimestre": {
+                    "type": "integer"
+                },
+                "grupo": {
+                    "type": "string"
+                },
+                "matricula": {
+                    "type": "string"
+                },
+                "tutor": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.loginReq": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.registerReq": {
+            "type": "object",
+            "properties": {
+                "apellido_materno": {
+                    "type": "string"
+                },
+                "apellido_paterno": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "telefono": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.saveTDIReq": {
+            "type": "object",
+            "properties": {
+                "categoria_id": {
+                    "type": "string"
+                },
+                "descripcion": {
+                    "type": "string"
+                },
+                "dimension_id": {
+                    "type": "string"
+                },
+                "entorno_id": {
+                    "type": "string"
+                },
+                "evidencia_requerida": {
+                    "type": "string"
+                },
+                "fecha_vencimiento": {
+                    "description": "Formato AAAA-MM-DD",
+                    "type": "string"
+                },
+                "horas": {
+                    "type": "integer"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "puntaje": {
+                    "type": "integer"
+                },
+                "trascendencia_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.selectTDIReq": {
+            "type": "object",
+            "properties": {
+                "catalogo_tdi_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.tokenResp": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "models.PerfilAdministrativo": {
+            "type": "object",
+            "properties": {
+                "cargo": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PerfilAlumno": {
+            "type": "object",
+            "properties": {
+                "carrera": {
+                    "type": "string"
+                },
+                "cuatrimestre": {
+                    "type": "integer"
+                },
+                "grupo": {
+                    "type": "string"
+                },
+                "horas_acumuladas": {
+                    "type": "integer"
+                },
+                "matricula": {
+                    "type": "string"
+                },
+                "meta_horas": {
+                    "type": "integer"
+                },
+                "tutor": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.PerfilCreador": {
+            "type": "object",
+            "properties": {
+                "descripcion": {
+                    "type": "string"
+                },
+                "institucion": {
+                    "type": "string"
+                },
+                "tipo": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.User": {
+            "type": "object",
+            "properties": {
+                "activo": {
+                    "type": "boolean"
+                },
+                "apellido_materno": {
+                    "type": "string"
+                },
+                "apellido_paterno": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nombre": {
+                    "type": "string"
+                },
+                "perfil_administrativo": {
+                    "$ref": "#/definitions/models.PerfilAdministrativo"
+                },
+                "perfil_alumno": {
+                    "description": "Perfiles adicionales cargados dinámicamente según rol",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.PerfilAlumno"
+                        }
+                    ]
+                },
+                "perfil_creador": {
+                    "$ref": "#/definitions/models.PerfilCreador"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "telefono": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "description": "Escribe 'Bearer ' seguido de tu token JWT obtenido en el login.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}
