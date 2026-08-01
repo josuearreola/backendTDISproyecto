@@ -28,6 +28,7 @@ type Handler struct {
 // @Tags tdi-catalog
 // @Accept json
 // @Produce json
+// @Security Bearer
 // @Param categoria_id query string false "Filtrar por ID de Categoría"
 // @Param dimension_id query string false "Filtrar por ID de Dimensión"
 // @Param entorno_id query string false "Filtrar por ID de Entorno"
@@ -43,7 +44,10 @@ func (h *Handler) ListCatalogHandler(w http.ResponseWriter, r *http.Request) {
 	trascendenciaID := r.URL.Query().Get("trascendencia_id")
 	search := r.URL.Query().Get("search")
 
-	items, err := h.Store.ListCatalog(r.Context(), categoryID, dimensionID, entornoID, trascendenciaID, search)
+	// Obtener el ID del alumno logueado de las cabeceras inyectadas por el Gateway
+	userID := r.Header.Get("X-User-Id")
+
+	items, err := h.Store.ListCatalog(r.Context(), userID, categoryID, dimensionID, entornoID, trascendenciaID, search)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo obtener el catálogo")
 		return
@@ -406,7 +410,7 @@ func (h *Handler) SubirEvidenciaHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
-		"message":         "evidencia subida con éxito. Estado del registro cambiado a EN_REVISION",
+		"message":         "evidencia subida con éxito. Estado del registro cambiado a EN REVISION",
 		"nombre_archivo":  nuevoNombre,
 		"url_archivo":     urlArchivo,
 		"hash":            fileHash,

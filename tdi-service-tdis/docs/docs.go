@@ -70,6 +70,11 @@ const docTemplate = `{
         },
         "/api/tdi/catalogo": {
             "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "description": "Obtiene todas las actividades vigentes con filtros opcionales",
                 "consumes": [
                     "application/json"

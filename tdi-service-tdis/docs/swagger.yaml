@@ -187,6 +187,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - Bearer: []
       summary: Listar y filtrar catálogo de TDIs
       tags:
       - tdi-catalog

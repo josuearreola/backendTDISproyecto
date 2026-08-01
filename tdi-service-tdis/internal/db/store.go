@@ -48,7 +48,8 @@ type CatalogItem struct {
 }
 
 // ListCatalog obtiene actividades filtradas por diversos parámetros.
-func (s *Store) ListCatalog(ctx context.Context, categoryID, dimensionID, entornoID, trascendenciaID, search string) ([]CatalogItem, error) {
+// Si se provee userID (de un alumno logueado), se excluyen las actividades que ya seleccionó y no han sido rechazadas.
+func (s *Store) ListCatalog(ctx context.Context, userID, categoryID, dimensionID, entornoID, trascendenciaID, search string) ([]CatalogItem, error) {
 	query := `
 		SELECT id, nombre, descripcion, evidencia_requerida, horas, puntaje, 
 		       fecha_creacion, fecha_vencimiento, categoria_id, dimension_id, 
@@ -58,6 +59,12 @@ func (s *Store) ListCatalog(ctx context.Context, categoryID, dimensionID, entorn
 	`
 	var args []interface{}
 	argCount := 1
+
+	if userID != "" {
+		query += fmt.Sprintf(" AND id NOT IN (SELECT catalogo_tdi_id FROM registro_tdi WHERE alumno_id = (SELECT id FROM alumnos WHERE user_id = $%d) AND estado != 'RECHAZADA')", argCount)
+		args = append(args, userID)
+		argCount++
+	}
 
 	if categoryID != "" {
 		query += fmt.Sprintf(" AND categoria_id = $%d", argCount)
@@ -280,10 +287,10 @@ func (s *Store) SaveEvidenceMetadata(ctx context.Context, registroID, url, nombr
 		}
 	}
 
-	// 2. Actualizar el estado del registro a EN_VALIDACION
+	// 2. Actualizar el estado del registro a EN REVISION
 	_, err = tx.Exec(ctx, `
 		UPDATE registro_tdi 
-		SET estado = 'EN_REVISION' 
+		SET estado = 'EN REVISION' 
 		WHERE id = $1
 	`, registroID)
 	if err != nil {

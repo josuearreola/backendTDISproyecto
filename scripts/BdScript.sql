@@ -96,7 +96,7 @@ CREATE TABLE registro_tdi(
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  alumno_id UUID REFERENCES alumnos(id),
  catalogo_tdi_id UUID REFERENCES catalogo_tdi(id),
- estado VARCHAR(20) CHECK (estado IN ('PENDIENTE','EN_REVISION','APROBADA','RECHAZADA')),
+ estado VARCHAR(20) CHECK (estado IN ('PENDIENTE','EN REVISION','APROBADA','RECHAZADA')),
  semaforo VARCHAR(10) CHECK (semaforo IN ('VERDE','AMARILLO','ROJO')),
  horas_otorgadas INT,
  puntaje_obtenido INT,
