@@ -138,6 +138,7 @@ func (h *Handler) CreateCatalogItemHandler(w http.ResponseWriter, r *http.Reques
 		TrascendenciaID:    req.TrascendenciaID,
 		EntornoID:          req.EntornoID,
 		CreadorID:          creadorID,
+		CreadorUserID:      &userID,
 	}
 
 	if err := h.Store.CreateCatalogItem(r.Context(), item); err != nil {

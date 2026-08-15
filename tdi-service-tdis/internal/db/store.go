@@ -30,69 +30,96 @@ func (s *Store) Close() {
 	s.pool.Close()
 }
 
-// CatalogItem representa una actividad del catálogo general en base de datos.
-type CatalogItem struct {
-	ID                 string    `json:"id"`
-	Nombre             string    `json:"nombre"`
-	Descripcion        string    `json:"descripcion"`
-	EvidenciaRequerida string    `json:"evidencia_requerida"`
-	Horas              int       `json:"horas"`
-	Puntaje            int       `json:"puntaje"`
-	FechaCreacion      time.Time `json:"fecha_creacion"`
-	FechaVencimiento   time.Time `json:"fecha_vencimiento"`
-	CategoriaID        string    `json:"categoria_id"`
-	DimensionID        string    `json:"dimension_id"`
-	TrascendenciaID    string    `json:"trascendencia_id"`
-	EntornoID          string    `json:"entorno_id"`
-	CreadorID          *string   `json:"creador_id"`
+// CreadorInfo representa el perfil resumido del usuario que creó la actividad.
+type CreadorInfo struct {
+	UserID          string `json:"user_id"`
+	Nombre          string `json:"nombre"`
+	ApellidoPaterno string `json:"apellido_paterno"`
+	ApellidoMaterno string `json:"apellido_materno"`
+	Email           string `json:"email"`
+	Rol             string `json:"rol"`
+	Telefono        string `json:"telefono"`
+	Institucion     string `json:"institucion,omitempty"`
 }
 
-// ListCatalog obtiene actividades filtradas por diversos parámetros.
+// CatalogItem representa una actividad del catálogo general en base de datos.
+type CatalogItem struct {
+	ID                 string       `json:"id"`
+	Nombre             string       `json:"nombre"`
+	Descripcion        string       `json:"descripcion"`
+	EvidenciaRequerida string       `json:"evidencia_requerida"`
+	Horas              int          `json:"horas"`
+	Puntaje            int          `json:"puntaje"`
+	FechaCreacion      time.Time    `json:"fecha_creacion"`
+	FechaVencimiento   time.Time    `json:"fecha_vencimiento"`
+	CategoriaID        string       `json:"categoria_id"`
+	DimensionID        string       `json:"dimension_id"`
+	TrascendenciaID    string       `json:"trascendencia_id"`
+	EntornoID          string       `json:"entorno_id"`
+	CreadorID          *string      `json:"creador_id"`
+	CreadorUserID      *string      `json:"creador_user_id"`
+	Creador            *CreadorInfo `json:"creador,omitempty"`
+}
+
+func getString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// ListCatalog obtiene actividades filtradas por diversos parámetros con la información de su creador.
 // Si se provee userID (de un alumno logueado), se excluyen las actividades que ya seleccionó y no han sido rechazadas.
 func (s *Store) ListCatalog(ctx context.Context, userID, categoryID, dimensionID, entornoID, trascendenciaID, search string) ([]CatalogItem, error) {
 	query := `
-		SELECT id, nombre, descripcion, evidencia_requerida, horas, puntaje, 
-		       fecha_creacion, fecha_vencimiento, categoria_id, dimension_id, 
-		       trascendencia_id, entorno_id, creador_id
-		FROM catalogo_tdi
-		WHERE fecha_vencimiento >= CURRENT_DATE
+		SELECT c.id, c.nombre, c.descripcion, c.evidencia_requerida, c.horas, c.puntaje, 
+		       c.fecha_creacion, c.fecha_vencimiento, c.categoria_id, c.dimension_id, 
+		       c.trascendencia_id, c.entorno_id, c.creador_id, c.creador_user_id,
+		       u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.email,
+		       r.nombre, u.telefono, cr.institucion
+		FROM catalogo_tdi c
+		LEFT JOIN users u ON c.creador_user_id = u.id
+		LEFT JOIN user_roles ur ON u.id = ur.user_id
+		LEFT JOIN roles r ON ur.role_id = r.id
+		LEFT JOIN creadores_tdi cr ON u.id = cr.user_id
+		WHERE c.fecha_vencimiento >= CURRENT_DATE
 	`
 	var args []interface{}
 	argCount := 1
 
 	if userID != "" {
-		query += fmt.Sprintf(" AND id NOT IN (SELECT catalogo_tdi_id FROM registro_tdi WHERE alumno_id = (SELECT id FROM alumnos WHERE user_id = $%d) AND estado != 'RECHAZADA')", argCount)
+		query += fmt.Sprintf(" AND c.id NOT IN (SELECT catalogo_tdi_id FROM registro_tdi WHERE alumno_id = (SELECT id FROM alumnos WHERE user_id = $%d) AND estado != 'RECHAZADA')", argCount)
 		args = append(args, userID)
 		argCount++
 	}
 
 	if categoryID != "" {
-		query += fmt.Sprintf(" AND categoria_id = $%d", argCount)
+		query += fmt.Sprintf(" AND c.categoria_id = $%d", argCount)
 		args = append(args, categoryID)
 		argCount++
 	}
 	if dimensionID != "" {
-		query += fmt.Sprintf(" AND dimension_id = $%d", argCount)
+		query += fmt.Sprintf(" AND c.dimension_id = $%d", argCount)
 		args = append(args, dimensionID)
 		argCount++
 	}
 	if entornoID != "" {
-		query += fmt.Sprintf(" AND entorno_id = $%d", argCount)
+		query += fmt.Sprintf(" AND c.entorno_id = $%d", argCount)
 		args = append(args, entornoID)
 		argCount++
 	}
 	if trascendenciaID != "" {
-		query += fmt.Sprintf(" AND trascendencia_id = $%d", argCount)
+		query += fmt.Sprintf(" AND c.trascendencia_id = $%d", argCount)
 		args = append(args, trascendenciaID)
 		argCount++
 	}
 	if search != "" {
-		query += fmt.Sprintf(" AND (nombre ILIKE $%d OR descripcion ILIKE $%d)", argCount, argCount)
+		query += fmt.Sprintf(" AND (c.nombre ILIKE $%d OR c.descripcion ILIKE $%d)", argCount, argCount)
 		args = append(args, "%"+search+"%")
 		argCount++
 	}
 
-	query += " ORDER BY fecha_creacion DESC"
+	query += " ORDER BY c.fecha_creacion DESC"
 
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -103,40 +130,96 @@ func (s *Store) ListCatalog(ctx context.Context, userID, categoryID, dimensionID
 	var items []CatalogItem
 	for rows.Next() {
 		var item CatalogItem
+		var (
+			creadorUserID   *string
+			uID             *string
+			uNombre         *string
+			uApPaterno      *string
+			uApMaterno      *string
+			uEmail          *string
+			uRol            *string
+			uTelefono       *string
+			crInstitucion   *string
+		)
 		err := rows.Scan(
 			&item.ID, &item.Nombre, &item.Descripcion, &item.EvidenciaRequerida,
 			&item.Horas, &item.Puntaje, &item.FechaCreacion, &item.FechaVencimiento,
 			&item.CategoriaID, &item.DimensionID, &item.TrascendenciaID, &item.EntornoID,
-			&item.CreadorID,
+			&item.CreadorID, &creadorUserID,
+			&uID, &uNombre, &uApPaterno, &uApMaterno, &uEmail, &uRol, &uTelefono, &crInstitucion,
 		)
 		if err != nil {
 			return nil, err
+		}
+		item.CreadorUserID = creadorUserID
+		if uID != nil {
+			item.Creador = &CreadorInfo{
+				UserID:          *uID,
+				Nombre:          getString(uNombre),
+				ApellidoPaterno: getString(uApPaterno),
+				ApellidoMaterno: getString(uApMaterno),
+				Email:           getString(uEmail),
+				Rol:             getString(uRol),
+				Telefono:        getString(uTelefono),
+				Institucion:     getString(crInstitucion),
+			}
 		}
 		items = append(items, item)
 	}
 	return items, nil
 }
 
-// GetCatalogItem obtiene una actividad por su ID.
+// GetCatalogItem obtiene una actividad por su ID incluyendo la información de su creador.
 func (s *Store) GetCatalogItem(ctx context.Context, id string) (*CatalogItem, error) {
 	item := &CatalogItem{}
+	var (
+		creadorUserID   *string
+		uID             *string
+		uNombre         *string
+		uApPaterno      *string
+		uApMaterno      *string
+		uEmail          *string
+		uRol            *string
+		uTelefono       *string
+		crInstitucion   *string
+	)
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, nombre, descripcion, evidencia_requerida, horas, puntaje, 
-		       fecha_creacion, fecha_vencimiento, categoria_id, dimension_id, 
-		       trascendencia_id, entorno_id, creador_id
-		FROM catalogo_tdi
-		WHERE id = $1
+		SELECT c.id, c.nombre, c.descripcion, c.evidencia_requerida, c.horas, c.puntaje, 
+		       c.fecha_creacion, c.fecha_vencimiento, c.categoria_id, c.dimension_id, 
+		       c.trascendencia_id, c.entorno_id, c.creador_id, c.creador_user_id,
+		       u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.email,
+		       r.nombre, u.telefono, cr.institucion
+		FROM catalogo_tdi c
+		LEFT JOIN users u ON c.creador_user_id = u.id
+		LEFT JOIN user_roles ur ON u.id = ur.user_id
+		LEFT JOIN roles r ON ur.role_id = r.id
+		LEFT JOIN creadores_tdi cr ON u.id = cr.user_id
+		WHERE c.id = $1
 	`, id).Scan(
 		&item.ID, &item.Nombre, &item.Descripcion, &item.EvidenciaRequerida,
 		&item.Horas, &item.Puntaje, &item.FechaCreacion, &item.FechaVencimiento,
 		&item.CategoriaID, &item.DimensionID, &item.TrascendenciaID, &item.EntornoID,
-		&item.CreadorID,
+		&item.CreadorID, &creadorUserID,
+		&uID, &uNombre, &uApPaterno, &uApMaterno, &uEmail, &uRol, &uTelefono, &crInstitucion,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, errors.New("actividad no encontrada")
 		}
 		return nil, err
+	}
+	item.CreadorUserID = creadorUserID
+	if uID != nil {
+		item.Creador = &CreadorInfo{
+			UserID:          *uID,
+			Nombre:          getString(uNombre),
+			ApellidoPaterno: getString(uApPaterno),
+			ApellidoMaterno: getString(uApMaterno),
+			Email:           getString(uEmail),
+			Rol:             getString(uRol),
+			Telefono:        getString(uTelefono),
+			Institucion:     getString(crInstitucion),
+		}
 	}
 	return item, nil
 }
@@ -146,11 +229,11 @@ func (s *Store) CreateCatalogItem(ctx context.Context, item CatalogItem) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO catalogo_tdi (nombre, descripcion, evidencia_requerida, horas, puntaje, 
 		                          fecha_creacion, fecha_vencimiento, categoria_id, dimension_id, 
-		                          trascendencia_id, entorno_id, creador_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		                          trascendencia_id, entorno_id, creador_id, creador_user_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`, item.Nombre, item.Descripcion, item.EvidenciaRequerida, item.Horas, item.Puntaje,
 		item.FechaCreacion, item.FechaVencimiento, item.CategoriaID, item.DimensionID,
-		item.TrascendenciaID, item.EntornoID, item.CreadorID)
+		item.TrascendenciaID, item.EntornoID, item.CreadorID, item.CreadorUserID)
 	return err
 }
 
