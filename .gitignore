@@ -1,0 +1,18 @@
+# Secretos y configuración local — nunca deben subirse al repo.
+.env
+*.env
+!*.env.example
+
+# Binarios compilados de Go
+/api-gateaway-tdis/gateway
+/user-service-tdis/user-service
+/tdi-service-tdis/tdi-service
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sistema
+.DS_Store
