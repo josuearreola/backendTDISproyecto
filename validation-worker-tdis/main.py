@@ -1,6 +1,10 @@
 import os
 import json
 import time
+import tempfile
+import threading
+import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import redis
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -13,6 +17,55 @@ load_dotenv(dotenv_path="../.env")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 DATABASE_URL = os.getenv("DATABASE_URL")
+# En Render el worker no comparte disco con tdi-service: descarga la evidencia de su /uploads.
+TDI_SERVICE_URL = os.getenv("TDI_SERVICE_URL", "").rstrip("/")
+
+
+class _HealthHandler(BaseHTTPRequestHandler):
+    """Responde /health para que Render lo trate como web service (el plan gratuito no admite
+    background workers) y para que tdi-service lo despierte al encolar una evidencia."""
+
+    def do_GET(self):
+        ok = self.path.split("?")[0] in ("/", "/health")
+        self.send_response(200 if ok else 404)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"status":"ok"}' if ok else b'{"error":"not found"}')
+
+    do_HEAD = do_GET
+
+    def log_message(self, *args):
+        pass  # sin una línea de log por cada ping
+
+
+def start_health_server():
+    port = os.getenv("PORT")
+    if not port:
+        return  # local: sin HTTP, como antes
+    server = HTTPServer(("0.0.0.0", int(port)), _HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    print(f"[Worker] Healthcheck HTTP escuchando en :{port}")
+
+
+def obtener_archivo(nombre_archivo, url_archivo):
+    """Devuelve (ruta, es_temporal). Primero busca en disco (desarrollo local, mismo equipo que
+    tdi-service); si no está y hay TDI_SERVICE_URL, lo descarga a un archivo temporal."""
+    for base in ("../tdi-service-tdis/uploads", "../uploads", "./uploads"):
+        ruta = os.path.join(base, nombre_archivo)
+        if os.path.exists(ruta):
+            return ruta, False
+    if TDI_SERVICE_URL and url_archivo:
+        sufijo = os.path.splitext(nombre_archivo)[1]
+        fd, ruta = tempfile.mkstemp(suffix=sufijo)
+        try:
+            # tdi-service también puede estar dormido: se le da tiempo de arrancar.
+            with urllib.request.urlopen(TDI_SERVICE_URL + url_archivo, timeout=90) as resp, os.fdopen(fd, "wb") as out:
+                out.write(resp.read())
+            return ruta, True
+        except Exception as e:
+            print(f"[Worker] No se pudo descargar {url_archivo} de tdi-service: {e}")
+            os.remove(ruta)
+    return os.path.join("./uploads", nombre_archivo), False  # no existe: el pipeline lo manda a revisión manual
 
 def get_db_connection():
     """Establece conexión a la base de datos Postgres (Neon)."""
@@ -107,20 +160,18 @@ def process_validation_job(rdb, db_conn, job_data):
             print(f"[Worker] Registro {registro_id} rechazado automáticamente por duplicidad.")
             return
 
-        # 3. Ubicar archivo físico localmente
-        file_path = os.path.join("../tdi-service-tdis/uploads", nombre_archivo)
-        if not os.path.exists(file_path):
-            # Fallback por si corre en raíz
-            file_path = os.path.join("../uploads", nombre_archivo)
-            if not os.path.exists(file_path):
-                file_path = os.path.join("./uploads", nombre_archivo)
-            
+        # 3. Ubicar el archivo (disco local o descarga desde tdi-service)
+        file_path, es_temporal = obtener_archivo(nombre_archivo, url_archivo)
         print(f"[Worker] Leyendo archivo: {file_path}")
-        
+
         # 4. Correr Pipeline de Validación de 4 Capas (OCR, CLIP, Desenfoque)
-        aprobado_ia, coincidencia_score, observaciones = validator.process_file_pipeline(
-            file_path, tdi_nombre, student_name, matricula
-        )
+        try:
+            aprobado_ia, coincidencia_score, observaciones = validator.process_file_pipeline(
+                file_path, tdi_nombre, student_name, matricula
+            )
+        finally:
+            if es_temporal:
+                os.remove(file_path)
         
         # 5. Guardar Resultados en base de datos
         if aprobado_ia:
@@ -203,6 +254,7 @@ def main():
     print("==================================================")
     print("  TDI VALIDATION WORKER DAEMON STARTING           ")
     print("==================================================")
+    start_health_server()
     
        # Conectando a Redis
     try:

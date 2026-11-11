@@ -298,6 +298,26 @@ func (h *Handler) auditar(r *http.Request, accion, entidad, entidadID string, an
 	}
 }
 
+// despertarWorker hace un GET a WORKER_URL/health para que el worker (web service gratuito
+// de Render, que se duerme sin tráfico) arranque y procese validation_queue. La tarea ya está
+// en Redis, así que si el ping falla no se pierde: se procesa la próxima vez que el worker despierte.
+func despertarWorker() {
+	url := strings.TrimRight(os.Getenv("WORKER_URL"), "/")
+	if url == "" {
+		return
+	}
+	go func() {
+		// Un servicio dormido tarda cerca de un minuto en arrancar.
+		client := &http.Client{Timeout: 90 * time.Second}
+		resp, err := client.Get(url + "/health")
+		if err != nil {
+			log.Printf("[TDI-SERVICE ] no se pudo despertar al worker: %v", err)
+			return
+		}
+		resp.Body.Close()
+	}()
+}
+
 // notificar encola una notificación in-app para notification-service-tdis.
 // ponytail: si Redis no está disponible la notificación se pierde (solo se loguea); outbox en BD si se vuelve crítico.
 func (h *Handler) notificar(usuarioID, titulo, mensaje string) {
@@ -445,6 +465,7 @@ func (h *Handler) SubirEvidenciaHandler(w http.ResponseWriter, r *http.Request) 
 				fmt.Printf("[TDI-SERVICE ] Error al encolar tarea en Redis: %v\n", err)
 			} else {
 				fmt.Printf("[TDI-SERVICE ] Tarea de validación encolada para registro %s\n", registroID)
+				despertarWorker()
 			}
 		}
 	} else {

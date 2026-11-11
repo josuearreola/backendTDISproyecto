@@ -9,11 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr p
 WORKDIR /app
 
 # Instalamos dependencias de Python primero para aprovechar la caché de capas.
-COPY validation-worker-tdis/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# CLIP (torch + transformers) es opcional: no cabe en los 512 MB del plan gratuito.
+# Para una imagen con CLIP: docker build --build-arg INSTALL_CLIP=true ...
+ARG INSTALL_CLIP=false
+COPY validation-worker-tdis/requirements.txt validation-worker-tdis/requirements-clip.txt ./
+RUN pip install --no-cache-dir -r requirements.txt && \
+    if [ "$INSTALL_CLIP" = "true" ]; then pip install --no-cache-dir -r requirements-clip.txt; fi
 
 # Copiamos el código del worker.
 COPY validation-worker-tdis/ .
 
-# El worker es un proceso de fondo (BRPOP sobre la cola de Redis), no expone HTTP.
+# El worker consume validation_queue (BRPOP). Si existe PORT (Render) expone además /health,
+# porque el plan gratuito solo admite web services.
 CMD ["python", "main.py"]
