@@ -68,6 +68,17 @@ func main() {
 		log.Fatalf("no se pudo crear el proxy de tdi: %v", err)
 	}
 
+	// Servicio de notificaciones: ruta nueva /api/notificaciones y alias
+	// /api/users/notificaciones para no romper al frontend existente.
+	notifProxy, err := proxy.New(cfg.Services["notification"], "/api")
+	if err != nil {
+		log.Fatalf("no se pudo crear el proxy de notificaciones: %v", err)
+	}
+	notifAliasProxy, err := proxy.New(cfg.Services["notification"], "/api/users")
+	if err != nil {
+		log.Fatalf("no se pudo crear el proxy de notificaciones: %v", err)
+	}
+
 
 	// 5. Montar el router con Chi.
 	r := chi.NewRouter()
@@ -77,6 +88,7 @@ func main() {
 	r.Use(chimw.Recoverer)
 	r.Use(middleware.CORS(cfg.AllowOrigin))
 	r.Use(middleware.RateLimit(rdb, 100, time.Minute)) // 100 req/min por IP
+	r.Use(middleware.Audit(rdb))                       // bitácora de peticiones que modifican estado
 
 		// Healthcheck público
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +130,11 @@ func main() {
 
 		// NUEVO: Endpoint nativo para cerrar sesión
 		protected.Post("/api/users/logout", makeLogoutHandler(verifier))
+
+		protected.Handle("/api/notificaciones", notifProxy)
+		protected.Handle("/api/notificaciones/*", notifProxy)
+		protected.Handle("/api/users/notificaciones", notifAliasProxy)
+		protected.Handle("/api/users/notificaciones/*", notifAliasProxy)
 
 		protected.Handle("/api/users/*", userProxy)
 		protected.Handle("/api/tdi/*", tdiProxy)

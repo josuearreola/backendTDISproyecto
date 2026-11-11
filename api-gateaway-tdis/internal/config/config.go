@@ -32,6 +32,7 @@ func Load() (*Config, error) {
 	if userURL := os.Getenv("USER_SERVICE_URL"); userURL != "" {
 		cfg.Services["user"] = strings.TrimRight(userURL, "/")
 	}
+	cfg.Services["notification"] = strings.TrimRight(getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8083"), "/")
 
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("falta JWT_SECRET")

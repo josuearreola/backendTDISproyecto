@@ -99,11 +99,3 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration) func(http.Han
 		})
 	}
 }
-
-func clientIP(r *http.Request) string {
-	// Railway y otros proxies ponen la IP real en X-Forwarded-For.
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return xff
-	}
-	return r.RemoteAddr
-}

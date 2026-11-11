@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -141,10 +144,13 @@ func (h *Handler) CreateCatalogItemHandler(w http.ResponseWriter, r *http.Reques
 		CreadorUserID:      &userID,
 	}
 
-	if err := h.Store.CreateCatalogItem(r.Context(), item); err != nil {
+	id, err := h.Store.CreateCatalogItem(r.Context(), item)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo crear la actividad")
 		return
 	}
+	item.ID = id
+	h.auditar(r, "CATALOGO_CREADO", "catalogo_tdi", id, nil, item)
 	writeJSON(w, http.StatusCreated, map[string]string{"message": "actividad creada en catálogo con éxito"})
 }
 
@@ -200,10 +206,13 @@ func (h *Handler) UpdateCatalogItemHandler(w http.ResponseWriter, r *http.Reques
 		EntornoID:          req.EntornoID,
 	}
 
+	antes, _ := h.Store.GetCatalogItem(r.Context(), id)
 	if err := h.Store.UpdateCatalogItem(r.Context(), id, item); err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo actualizar la actividad")
 		return
 	}
+	item.ID = id
+	h.auditar(r, "CATALOGO_ACTUALIZADO", "catalogo_tdi", id, antes, item)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "actividad actualizada con éxito"})
 }
 
@@ -225,10 +234,12 @@ func (h *Handler) DeleteCatalogItemHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	id := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+	antes, _ := h.Store.GetCatalogItem(r.Context(), id)
 	if err := h.Store.DeleteCatalogItem(r.Context(), id); err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo eliminar la actividad")
 		return
 	}
+	h.auditar(r, "CATALOGO_ELIMINADO", "catalogo_tdi", id, antes, nil)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "actividad eliminada/desactivada con éxito"})
 }
 
@@ -270,6 +281,36 @@ func (h *Handler) SeleccionarTDIHandler(w http.ResponseWriter, r *http.Request) 
 		"message":         "actividad seleccionada con éxito",
 		"registro_tdi_id": registroID,
 	})
+}
+
+// auditar registra un evento de dominio. Un fallo no revierte la operación: solo se loguea.
+func (h *Handler) auditar(r *http.Request, accion, entidad, entidadID string, antes, despues any) {
+	userID, rol := r.Header.Get("X-User-Id"), r.Header.Get("X-User-Role")
+	if antes == (*db.CatalogItem)(nil) {
+		antes = nil // GetCatalogItem falló: guardar NULL, no "null" tipado
+	}
+	err := h.Store.Audit(r.Context(), db.AuditEntry{
+		Origen: "DOMINIO", UsuarioID: &userID, Rol: &rol, Accion: accion,
+		Entidad: &entidad, EntidadID: &entidadID, Antes: antes, Despues: despues,
+	})
+	if err != nil {
+		log.Printf("[TDI-SERVICE ] no se pudo auditar %s %s: %v", accion, entidadID, err)
+	}
+}
+
+// notificar encola una notificación in-app para notification-service-tdis.
+// ponytail: si Redis no está disponible la notificación se pierde (solo se loguea); outbox en BD si se vuelve crítico.
+func (h *Handler) notificar(usuarioID, titulo, mensaje string) {
+	if h.RDB == nil {
+		log.Printf("[TDI-SERVICE ] Redis no configurado: notificación para %s no enviada", usuarioID)
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{"usuario_id": usuarioID, "titulo": titulo, "mensaje": mensaje})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := h.RDB.LPush(ctx, "notification_queue", payload).Err(); err != nil {
+		log.Printf("[TDI-SERVICE ] error al encolar notificación: %v", err)
+	}
 }
 
 // Utilidades JSON
@@ -562,10 +603,22 @@ func (h *Handler) ResolveRevisionHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = h.Store.ResolveRevision(r.Context(), revisionID, userID, req.Decision, req.Comentario, details)
+	err = h.Store.ResolveRevision(r.Context(), revisionID, userID, requesterRole, req.Decision, req.Comentario, details)
+	if errors.Is(err, db.ErrRevisionYaResuelta) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "error al guardar el dictamen: "+err.Error())
 		return
+	}
+
+	if req.Decision == "APROBADA" {
+		h.notificar(details.UserID, "Evidencia Aprobada por Administrador",
+			fmt.Sprintf("Tu evidencia para la actividad '%s' ha sido aprobada manualmente. Se te han otorgado %d horas.", details.TdiNombre, details.TdiHoras))
+	} else {
+		h.notificar(details.UserID, "Evidencia Rechazada por Administrador",
+			fmt.Sprintf("Tu evidencia para la actividad '%s' ha sido rechazada. Motivo: %s", details.TdiNombre, req.Comentario))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "dictamen de evidencia guardado con éxito"})
