@@ -67,6 +67,10 @@ func main() {
 		log.Println("[TDI-SERVICE ] REDIS_URL no configurada. Continuando en modo desarrollo sin colas.")
 	}
 
+	if rdb != nil {
+		go consumeAuditQueue(rdb, store)
+	}
+
 	h := &handlers.Handler{
 		Store: store,
 		RDB:   rdb, // <-- INYECTAR REDIS CLIENT
@@ -101,6 +105,11 @@ func main() {
 	r.Get("/dimensiones", h.GetDimensionesHandler)
 	r.Get("/trascendencias", h.GetTrascendenciasHandler)
 	r.Get("/entornos", h.GetEntornosHandler)
+
+	// Reportes, métricas y auditoría (ADMINISTRATIVO / COORDINADOR)
+	r.Get("/metricas", h.GetMetricasHandler)
+	r.Get("/export/{dataset}", h.ExportHandler)
+	r.Get("/auditoria", h.GetAuditoriaHandler)
 
 
 
@@ -147,4 +156,32 @@ func fileServer(r chi.Router, path string, root http.FileSystem) {
 	r.Get(path+"/*", func(w http.ResponseWriter, r *http.Request) {
 		fs.ServeHTTP(w, r)
 	})
+}
+
+// consumeAuditQueue persiste en audit_log lo que el gateway encola en "audit_queue".
+// Si la BD no está disponible, el mensaje se devuelve a la cola para no perderlo;
+// si la BD rechaza el dato (error permanente), se descarta para no bloquear la cola.
+func consumeAuditQueue(rdb *redis.Client, store *db.Store) {
+	ctx := context.Background()
+	log.Println("[TDI-SERVICE ] Escuchando la cola 'audit_queue'")
+	for {
+		res, err := rdb.BRPop(ctx, 10*time.Second, "audit_queue").Result()
+		if err == redis.Nil {
+			continue
+		}
+		if err != nil {
+			log.Printf("[TDI-SERVICE ] error leyendo audit_queue: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		if err := store.SaveGatewayAudit(ctx, []byte(res[1])); err != nil {
+			if db.ErrorPermanente(err) {
+				log.Printf("[TDI-SERVICE ] auditoría descartada (la BD rechazó el dato): %v — %s", err, res[1])
+				continue
+			}
+			log.Printf("[TDI-SERVICE ] error guardando auditoría, se reencola: %v", err)
+			rdb.RPush(ctx, "audit_queue", res[1])
+			time.Sleep(5 * time.Second)
+		}
+	}
 }

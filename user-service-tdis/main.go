@@ -73,8 +73,6 @@ func main() {
 
 	r.Delete("/users/{id}", h.DeleteUserHandler)
 
-	r.Get("/notificaciones", h.GetNotificationsHandler)
-	r.Put("/notificaciones/{id}/leer", h.MarkNotificationReadHandler)
 
 
 

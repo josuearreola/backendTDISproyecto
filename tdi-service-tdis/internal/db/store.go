@@ -224,17 +224,19 @@ func (s *Store) GetCatalogItem(ctx context.Context, id string) (*CatalogItem, er
 	return item, nil
 }
 
-// CreateCatalogItem inserta una nueva actividad.
-func (s *Store) CreateCatalogItem(ctx context.Context, item CatalogItem) error {
-	_, err := s.pool.Exec(ctx, `
+// CreateCatalogItem inserta una nueva actividad y devuelve su ID.
+func (s *Store) CreateCatalogItem(ctx context.Context, item CatalogItem) (string, error) {
+	var id string
+	err := s.pool.QueryRow(ctx, `
 		INSERT INTO catalogo_tdi (nombre, descripcion, evidencia_requerida, horas, puntaje, 
 		                          fecha_creacion, fecha_vencimiento, categoria_id, dimension_id, 
 		                          trascendencia_id, entorno_id, creador_id, creador_user_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		RETURNING id
 	`, item.Nombre, item.Descripcion, item.EvidenciaRequerida, item.Horas, item.Puntaje,
 		item.FechaCreacion, item.FechaVencimiento, item.CategoriaID, item.DimensionID,
-		item.TrascendenciaID, item.EntornoID, item.CreadorID, item.CreadorUserID)
-	return err
+		item.TrascendenciaID, item.EntornoID, item.CreadorID, item.CreadorUserID).Scan(&id)
+	return id, err
 }
 
 // UpdateCatalogItem modifica los campos de una actividad.
@@ -611,7 +613,10 @@ func (s *Store) GetStudentAndTDIInfoFromRevision(ctx context.Context, revisionID
 }
 
 // ResolveRevision resuelve una revisión de forma atómica en base de datos.
-func (s *Store) ResolveRevision(ctx context.Context, revisionID string, requesterUserID string, decision string, comentario string, details *RevisionDetails) error {
+var ErrRevisionYaResuelta = errors.New("la revisión ya fue dictaminada")
+
+// La notificación al alumno la envía el handler a notification_queue tras el commit.
+func (s *Store) ResolveRevision(ctx context.Context, revisionID, requesterUserID, requesterRole, decision, comentario string, details *RevisionDetails) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("error iniciando transaccion: %w", err)
@@ -627,13 +632,16 @@ func (s *Store) ResolveRevision(ctx context.Context, revisionID string, requeste
 	}
 
 	// 2. Actualizar tabla revisiones
-	_, err = tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE revisiones
 		SET decision = $1, comentario = $2, administrativo_id = $3, fecha = CURRENT_TIMESTAMP
-		WHERE id = $4
+		WHERE id = $4 AND decision = 'PENDIENTE'
 	`, decision, comentario, adminID, revisionID)
 	if err != nil {
 		return fmt.Errorf("no se pudo actualizar la revision: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrRevisionYaResuelta // evita sumar horas dos veces
 	}
 
 	// 3. Actualizar registro_tdi e historial
@@ -684,16 +692,6 @@ func (s *Store) ResolveRevision(ctx context.Context, revisionID string, requeste
 		if err != nil {
 			return fmt.Errorf("no se pudo actualizar progreso: %w", err)
 		}
-
-		// Insertar notificación de aprobación
-		_, err = tx.Exec(ctx, `
-			INSERT INTO notificaciones (usuario_id, titulo, mensaje)
-			VALUES ($1, 'Evidencia Aprobada por Administrador', $2)
-		`, details.UserID, fmt.Sprintf("Tu evidencia para la actividad '%s' ha sido aprobada manualmente. Se te han otorgado %d horas.", details.TdiNombre, details.TdiHoras))
-		if err != nil {
-			return fmt.Errorf("no se pudo insertar notificacion: %w", err)
-		}
-
 	} else {
 		// Rechazar registro
 		_, err = tx.Exec(ctx, `
@@ -704,15 +702,17 @@ func (s *Store) ResolveRevision(ctx context.Context, revisionID string, requeste
 		if err != nil {
 			return fmt.Errorf("no se pudo rechazar el registro: %w", err)
 		}
+	}
 
-		// Insertar notificación de rechazo
-		_, err = tx.Exec(ctx, `
-			INSERT INTO notificaciones (usuario_id, titulo, mensaje)
-			VALUES ($1, 'Evidencia Rechazada por Administrador', $2)
-		`, details.UserID, fmt.Sprintf("Tu evidencia para la actividad '%s' ha sido rechazada. Motivo: %s", details.TdiNombre, comentario))
-		if err != nil {
-			return fmt.Errorf("no se pudo insertar notificacion: %w", err)
-		}
+	// Auditoría en la misma transacción: si el dictamen se guarda, su rastro también.
+	entidad := "revisiones"
+	if err := insertAudit(ctx, tx, AuditEntry{
+		Origen: "DOMINIO", UsuarioID: &requesterUserID, Rol: &requesterRole,
+		Accion: "DICTAMEN_" + decision, Entidad: &entidad, EntidadID: &revisionID,
+		Antes:   map[string]string{"decision": "PENDIENTE", "estado_registro": "EN REVISION"},
+		Despues: map[string]any{"decision": decision, "comentario": comentario, "registro_tdi_id": details.RegistroID, "horas": details.TdiHoras},
+	}); err != nil {
+		return fmt.Errorf("no se pudo registrar auditoría: %w", err)
 	}
 
 	return tx.Commit(ctx)

@@ -18,6 +18,20 @@ def get_db_connection():
     """Establece conexión a la base de datos Postgres (Neon)."""
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
+def notificar(rdb, usuario_id, titulo, mensaje):
+    """Encola la notificación para notification-service-tdis. Se llama después del commit."""
+    try:
+        rdb.lpush("notification_queue", json.dumps({"usuario_id": str(usuario_id), "titulo": titulo, "mensaje": mensaje}))
+    except Exception as e:
+        print(f"[Worker] No se pudo encolar la notificación para {usuario_id}: {e}")
+
+def auditar(cursor, accion, registro_id, despues):
+    """Registra la decisión de la IA en audit_log dentro de la misma transacción."""
+    cursor.execute("""
+        INSERT INTO audit_log (origen, accion, entidad, entidad_id, despues)
+        VALUES ('WORKER', %s, 'registro_tdi', %s, %s)
+    """, (accion, str(registro_id), json.dumps(despues, default=str)))
+
 def process_validation_job(rdb, db_conn, job_data):
     registro_id = job_data.get("registro_tdi_id")
     nombre_archivo = job_data.get("nombre_archivo")
@@ -87,13 +101,9 @@ def process_validation_job(rdb, db_conn, job_data):
                 WHERE id = %s
             """, (obs, registro_id))
             
-            # Insertar notificación de rechazo por plagio
-            cursor.execute("""
-                INSERT INTO notificaciones (usuario_id, titulo, mensaje)
-                VALUES (%s, %s, %s)
-            """, (user_id, "Evidencia Rechazada", f"Tu evidencia para la actividad '{tdi_nombre}' fue rechazada automáticamente por intento de plagio (archivo duplicado)."))
-            
+            auditar(cursor, "IA_RECHAZO_PLAGIO", registro_id, {"duplicado_de": str(duplicate["registro_tdi_id"]), "hash": hash_sha256})
             db_conn.commit()
+            notificar(rdb, user_id, "Evidencia Rechazada", f"Tu evidencia para la actividad '{tdi_nombre}' fue rechazada automáticamente por intento de plagio (archivo duplicado).")
             print(f"[Worker] Registro {registro_id} rechazado automáticamente por duplicidad.")
             return
 
@@ -157,13 +167,9 @@ def process_validation_job(rdb, db_conn, job_data):
                     porcentaje = EXCLUDED.porcentaje
             """, (alumno_id, dimension_id, new_horas, percentage))
             
-            # Insertar notificación de aprobación automática
-            cursor.execute("""
-                INSERT INTO notificaciones (usuario_id, titulo, mensaje)
-                VALUES (%s, %s, %s)
-            """, (user_id, "Evidencia Aprobada", f"¡Felicidades! Tu evidencia para la actividad '{tdi_nombre}' ha sido aprobada automáticamente. Se te han otorgado {tdi_horas} horas y {tdi_puntaje} puntos."))
-            
+            auditar(cursor, "IA_APROBADA", registro_id, {"coincidencia": float(coincidencia_score or 0), "horas": tdi_horas, "observaciones": observaciones})
             db_conn.commit()
+            notificar(rdb, user_id, "Evidencia Aprobada", f"¡Felicidades! Tu evidencia para la actividad '{tdi_nombre}' ha sido aprobada automáticamente. Se te han otorgado {tdi_horas} horas y {tdi_puntaje} puntos.")
             print(f"[Worker] Puntos de actividad asignados automáticamente al alumno {matricula}.")
             
         else:
@@ -181,13 +187,9 @@ def process_validation_job(rdb, db_conn, job_data):
                 VALUES (%s, 'PENDIENTE', %s)
             """, (registro_id, observaciones))
             
-            # Insertar notificación de derivación a revisión manual
-            cursor.execute("""
-                INSERT INTO notificaciones (usuario_id, titulo, mensaje)
-                VALUES (%s, %s, %s)
-            """, (user_id, "Evidencia en Revisión Manual", f"Tu evidencia para la actividad '{tdi_nombre}' requiere revisión por parte de un administrador: {observaciones}"))
-            
+            auditar(cursor, "IA_REVISION_MANUAL", registro_id, {"coincidencia": float(coincidencia_score or 0), "observaciones": observaciones})
             db_conn.commit()
+            notificar(rdb, user_id, "Evidencia en Revisión Manual", f"Tu evidencia para la actividad '{tdi_nombre}' requiere revisión por parte de un administrador: {observaciones}")
             print(f"[Worker] Registro {registro_id} enviado a la tabla de revisiones para los administrativos.")
             
     except Exception as e:

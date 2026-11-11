@@ -63,14 +63,3 @@ type User struct {
 	PerfilAdministrativo *PerfilAdministrativo `json:"perfil_administrativo,omitempty"`
 	PerfilCreador        *PerfilCreador        `json:"perfil_creador,omitempty"`
 }
-
-// Notification representa una alerta para el usuario.
-type Notification struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"usuario_id"`
-	Titulo    string    `json:"titulo"`
-	Mensaje   string    `json:"mensaje"`
-	Leida     bool      `json:"leida"`
-	Fecha     time.Time `json:"fecha"`
-}
-

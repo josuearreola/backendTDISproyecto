@@ -31,6 +31,7 @@ func main() {
 		{Name: "GATEWAY     ", Path: "./api-gateaway-tdis", Port: "8080"},
 		{Name: "USER-SERVICE", Path: "./user-service-tdis", Port: "8081"},
 		{Name: "TDI-SERVICE ", Path: "./tdi-service-tdis", Port: "8082"},
+		{Name: "NOTIF-SVC   ", Path: "./notification-service-tdis", Port: "8083"},
 	}
 
 

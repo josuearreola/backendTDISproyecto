@@ -447,6 +447,43 @@ sequenceDiagram
     ]
     ```
 
+### C. Servicio de Notificaciones (`/api/notificaciones`) — `notification-service-tdis :8083`
+
+Dueño único de la tabla `notificaciones`. `tdi-service` y el worker ya no insertan directo: encolan `{"usuario_id","titulo","mensaje"}` en la cola Redis **`notification_queue`** y este servicio la consume.
+Las rutas antiguas `/api/users/notificaciones...` siguen funcionando (el gateway las redirige aquí).
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/notificaciones` | Últimas 200 del usuario. `?solo_no_leidas=true` para filtrar. |
+| GET | `/api/notificaciones/no-leidas` | `{"no_leidas": 3}` para el badge. |
+| PUT | `/api/notificaciones/{id}/leer` | Marca una como leída (404 si no es del usuario). |
+| PUT | `/api/notificaciones/leer-todas` | Marca todas como leídas. |
+
+### D. Reportes, Métricas y Auditoría (`/api/tdi`) — solo `ADMINISTRATIVO` y `COORDINADOR`
+
+Filtros de fecha comunes: `desde` / `hasta` en formato `AAAA-MM-DD` (inclusivos, opcionales).
+
+#### 1. Métricas del dashboard
+*   **Ruta**: `GET /api/tdi/metricas?desde=2026-01-01&hasta=2026-06-30`
+*   **Respuesta**: `registros_por_estado`, `validaciones_ia`, `tasa_auto_aprobacion` (%), `revisiones_por_decision`, `revisiones_pendientes`, `pendiente_mas_antigua`, `horas_por_dimension`, `horas_por_carrera`, `top_actividades` (5), `alumnos_activos`, `alumnos_meta_cumplida`. Las listas son `[{"nombre": "...", "total": 0}]`.
+
+#### 2. Exportar reportes
+*   **Ruta**: `GET /api/tdi/export/{dataset}?formato=csv|xlsx|pdf`
+*   **Datasets**: `registros`, `progreso`, `revisiones`, `auditoria`.
+*   **Filtros**: `desde`, `hasta`, `carrera`, `estado` (estado del registro, o decisión en `revisiones`). En `auditoria`: `usuario_id`, `entidad`, `origen`.
+*   **Respuesta**: archivo descargable (`Content-Disposition: attachment`). Máximo 50 000 filas.
+
+#### 3. Bitácora de auditoría
+*   **Ruta**: `GET /api/tdi/auditoria?usuario_id=&entidad=&entidad_id=&origen=&desde=&hasta=&limit=100&offset=0`
+*   **Orígenes**:
+    *   `GATEWAY`: toda petición POST/PUT/PATCH/DELETE (usuario, rol, método+ruta, status, IP). El gateway la encola en **`audit_queue`** y `tdi-service` la guarda.
+    *   `DOMINIO`: `CATALOGO_CREADO`, `CATALOGO_ACTUALIZADO`, `CATALOGO_ELIMINADO` (con `antes`/`despues`), `DICTAMEN_APROBADA` / `DICTAMEN_RECHAZADA` (en la misma transacción del dictamen).
+    *   `WORKER`: `IA_APROBADA`, `IA_REVISION_MANUAL`, `IA_RECHAZO_PLAGIO`.
+*   Requiere aplicar `scripts/03_auditoria.sql`.
+
+> [!NOTE]
+> Dictaminar una revisión que ya no está `PENDIENTE` ahora responde **409 Conflict** (antes sumaba las horas dos veces).
+
 ---
 
 
