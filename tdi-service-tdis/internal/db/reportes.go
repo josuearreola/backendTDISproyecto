@@ -189,19 +189,19 @@ type Conteo struct {
 }
 
 type Metricas struct {
-	Desde               time.Time `json:"desde"`
-	Hasta               time.Time `json:"hasta"`
-	RegistrosPorEstado  []Conteo  `json:"registros_por_estado"`
-	ValidacionesIA      []Conteo  `json:"validaciones_ia"`
-	TasaAutoAprobacion  float64   `json:"tasa_auto_aprobacion"` // % de validaciones de IA que aprobaron solas
-	RevisionesPorDecision []Conteo `json:"revisiones_por_decision"`
-	RevisionesPendientes int64    `json:"revisiones_pendientes"`
-	PendienteMasAntigua *time.Time `json:"pendiente_mas_antigua"`
-	HorasPorDimension   []Conteo  `json:"horas_por_dimension"`
-	HorasPorCarrera     []Conteo  `json:"horas_por_carrera"`
-	TopActividades      []Conteo  `json:"top_actividades"`
-	AlumnosActivos      int64     `json:"alumnos_activos"`
-	AlumnosMetaCumplida int64     `json:"alumnos_meta_cumplida"`
+	Desde                 time.Time  `json:"desde"`
+	Hasta                 time.Time  `json:"hasta"`
+	RegistrosPorEstado    []Conteo   `json:"registros_por_estado"`
+	ValidacionesIA        []Conteo   `json:"validaciones_ia"`
+	TasaAutoAprobacion    float64    `json:"tasa_auto_aprobacion"` // % de validaciones de IA que aprobaron solas
+	RevisionesPorDecision []Conteo   `json:"revisiones_por_decision"`
+	RevisionesPendientes  int64      `json:"revisiones_pendientes"`
+	PendienteMasAntigua   *time.Time `json:"pendiente_mas_antigua"`
+	HorasPorDimension     []Conteo   `json:"horas_por_dimension"`
+	HorasPorCarrera       []Conteo   `json:"horas_por_carrera"`
+	TopActividades        []Conteo   `json:"top_actividades"`
+	AlumnosActivos        int64      `json:"alumnos_activos"`
+	AlumnosMetaCumplida   int64      `json:"alumnos_meta_cumplida"`
 }
 
 func (s *Store) conteos(ctx context.Context, sql string, args ...any) ([]Conteo, error) {

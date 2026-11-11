@@ -6,14 +6,23 @@ import pytesseract
 from pdf2image import convert_from_path
 import cv2
 import numpy as np
-import torch
-from transformers import CLIPProcessor, CLIPModel
-
-# Inicializar modelo de CLIP (se descargará localmente una sola vez al arrancar)
-print("[Worker] Cargando modelo CLIP (openai/clip-vit-base-patch32) en CPU...")
-clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-print("[Worker] Modelo CLIP cargado con éxito.")
+# CLIP (capa 3) es opcional: PyTorch + el modelo no caben en los 512 MB del plan gratuito
+# de Render. Con ENABLE_CLIP=false no se importa torch y las evidencias que son sobre todo
+# imagen (sin texto que verificar) pasan a revisión manual en vez de aprobarse solas.
+CLIP_ENABLED = os.getenv("ENABLE_CLIP", "true").lower() not in ("0", "false", "no")
+clip_model = clip_processor = None
+if CLIP_ENABLED:
+    try:
+        from transformers import CLIPProcessor, CLIPModel
+        print("[Worker] Cargando modelo CLIP (openai/clip-vit-base-patch32) en CPU...")
+        clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        print("[Worker] Modelo CLIP cargado con éxito.")
+    except ImportError:
+        CLIP_ENABLED = False
+        print("[Worker] transformers/torch no instalados: CLIP desactivado (pip install -r requirements-clip.txt).")
+else:
+    print("[Worker] CLIP desactivado (ENABLE_CLIP=false): las evidencias visuales irán a revisión manual.")
 
 # Ruta predeterminada de Tesseract para Windows por si no está en las variables de entorno
 tesseract_paths = [
@@ -100,10 +109,11 @@ def process_file_pipeline(file_path, expected_description, student_name, matricu
             blurry_pages += 1
             continue
 
-        # Capa 3: Verificación Semántica Visual (CLIP)
-        clip_score = check_image_with_clip(img, expected_description)
-        if clip_score > max_clip_score:
-            max_clip_score = clip_score
+        # Capa 3: Verificación Semántica Visual (CLIP), solo si está activada
+        if CLIP_ENABLED:
+            clip_score = check_image_with_clip(img, expected_description)
+            if clip_score > max_clip_score:
+                max_clip_score = clip_score
 
         # Capa 4: Reconocimiento de texto (OCR)
         try:
@@ -154,8 +164,12 @@ def process_file_pipeline(file_path, expected_description, student_name, matricu
 
     # Si es mayormente visual (ej: fotos de eventos), confiamos en el puntaje de CLIP
     # Un puntaje CLIP > 70% es una excelente coincidencia semántica
-    if max_clip_score < 70.0:
-        observaciones.append(f"La imagen no coincide suficientemente con la actividad requerida (CLIP: {max_clip_score:.1f}%)")
+    if CLIP_ENABLED:
+        if max_clip_score < 70.0:
+            observaciones.append(f"La imagen no coincide suficientemente con la actividad requerida (CLIP: {max_clip_score:.1f}%)")
+    elif len(norm_text.strip()) <= 30:
+        # Sin CLIP no hay forma de verificar una foto: la revisa un administrativo.
+        observaciones.append("La evidencia es principalmente visual y la verificación por imagen (CLIP) está desactivada en este entorno")
 
     # Si hay alguna observación o advertencia menor, pasa a revisión humana
     if observaciones:

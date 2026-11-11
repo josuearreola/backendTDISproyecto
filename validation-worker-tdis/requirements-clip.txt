@@ -1,0 +1,4 @@
+# Capa 3 (CLIP). No cabe en el plan gratuito de Render; para local:
+#   pip install -r requirements.txt -r requirements-clip.txt
+torch
+transformers
